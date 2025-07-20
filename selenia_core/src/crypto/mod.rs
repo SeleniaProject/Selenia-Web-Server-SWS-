@@ -74,5 +74,6 @@ pub mod aes;
 pub mod aes_gcm;
 pub mod tls;
 pub mod tls13;
+pub mod ocsp;
 
 // 以降のメッセージは後続フェーズで追加予定 

@@ -17,7 +17,7 @@
 - [x] SHA-256 / HMAC / HKDF
 - [x] AES-GCM (software fallback + AES-NI)
 - [x] TLS 1.3 握手 & レコードレイヤ
-- [ ] OCSP Stapling / HSTS 自動付与
+- [x] OCSP Stapling / HSTS 自動付与
 
 ## 3. HTTP Stack
 ### 3.1 HTTP/1.x

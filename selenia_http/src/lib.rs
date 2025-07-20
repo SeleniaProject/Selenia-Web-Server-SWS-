@@ -223,11 +223,11 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
 
 fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str, keep_alive: bool, peer: &str) -> std::io::Result<()> {
     if !waf::evaluate(method, path, &headers.iter().map(|(a,b)|(a.to_string(),b.to_string())).collect::<Vec<_>>()) {
-        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive)?; return Ok(());
+        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg)?; return Ok(());
     }
 
     if method != "GET" && method != "HEAD" {
-        respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive)?;
+        respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive, cfg)?;
         return Ok(());
     }
     // Metrics endpoint high priority
@@ -326,6 +326,9 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
                 mime
             );
             if let Some(cr)=content_range_hdr { headers_txt.push_str(&format!("Content-Range: {}\r\n", cr)); }
+            if cfg.tls_cert.is_some() {
+                headers_txt.push_str("Strict-Transport-Security: max-age=31536000; includeSubDomains\r\n");
+            }
             if let Some(cache)=&effective_cache {
                 headers_txt.push_str(&format!("Cache-Control: max-age={}, stale-while-revalidate={}\r\n", cache.max_age, cache.stale_while_revalidate));
             }
@@ -346,20 +349,23 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         }
         Err(_) => {
             metrics::inc_requests(); metrics::inc_errors();
-            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive)?;
+            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive, cfg)?;
             log_info!("{} - \"{} {}\" 404 0", peer, method, path);
         }
     }
     return Ok(());
 }
 
-fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool) -> std::io::Result<()> {
+fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool, cfg:&ServerConfig) -> std::io::Result<()> {
     let mut headers = format!(
         "{} {} \r\nContent-Length: {}\r\nContent-Type: text/plain; charset=utf-8\r\n",
         version,
         status,
         body.len()
     );
+    if cfg.tls_cert.is_some() {
+        headers.push_str("Strict-Transport-Security: max-age=31536000; includeSubDomains\r\n");
+    }
     if keep_alive {
         headers.push_str("Connection: keep-alive\r\n");
         headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
