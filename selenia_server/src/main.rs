@@ -14,6 +14,7 @@ use selenia_core::config::ServerConfig;
 use selenia_core::locale::register_locale;
 use selenia_core::{log_error, log_info, signals};
 use selenia_http::run_server;
+use selenia_core::plugin::{install_plugin, validate_plugin};
 use std::collections::HashMap;
 use std::env;
 use std::process::Command;
@@ -85,7 +86,38 @@ fn main() {
             }
             println!("reload not supported"); return; },
             "benchmark" => { let _=Command::new(env::current_exe().unwrap()).arg("bench").status(); return; },
-            "plugin" => { println!("plugin subcommand placeholder"); return; },
+            "plugin" => {
+                if let Some(action) = args_iter.next() {
+                    match action.as_str() {
+                        "install" => {
+                            if let Some(path) = args_iter.next() {
+                                match install_plugin(&path) {
+                                    Ok(()) => println!("Plugin installed & loaded: {}", path),
+                                    Err(e) => eprintln!("Install failed: {}", e),
+                                }
+                            } else {
+                                eprintln!("Usage: sws plugin install <file.so>");
+                            }
+                        }
+                        "validate" => {
+                            if let Some(path) = args_iter.next() {
+                                match validate_plugin(&path) {
+                                    Ok(()) => println!("Validation OK: {}", path),
+                                    Err(e) => eprintln!("Validation failed: {}", e),
+                                }
+                            } else {
+                                eprintln!("Usage: sws plugin validate <file.so>");
+                            }
+                        }
+                        _ => {
+                            eprintln!("Unknown plugin action '{}'. Use install|validate", action);
+                        }
+                    }
+                } else {
+                    eprintln!("Usage: sws plugin <install|validate> <file.so>");
+                }
+                return;
+            },
             "locale" => { println!("locale compile placeholder"); return; },
             _ => { /* treat as cfg path or default*/ }
         }

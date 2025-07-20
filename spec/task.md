@@ -63,8 +63,8 @@
 ## 7. Operations / CLI
 - [x] ベンチマークツール (`tools/bench.rs`)
 - [x] `sws start|stop|reload|benchmark|plugin|locale` CLI サブコマンド実装
-- [ ] `sws plugin install/validate` flow
-- [ ] Zero-Downtime Reload ワークフロー
+- [x] `sws plugin install/validate` flow
+- [x] Zero-Downtime Reload ワークフロー
 
 ## 8. CI/CD & Quality Gate
 - [ ] GitHub Actions Matrix (build, test, fuzz, bench)
