@@ -90,13 +90,16 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                             Ok(Some((req, consumed))) => {
                                 let close_after = should_close(&req);
 
+                                let keep_alive = !close_after;
                                 handle_request(
                                     &mut conn.stream,
+                                    req.version,
                                     req.method,
                                     req.path,
                                     &req.headers,
                                     &cfg,
                                     &cfg.locale,
+                                    keep_alive,
                                 )?;
                                 // remove consumed bytes (Parser consumed data)
                                 conn.buf.drain(0..consumed);
@@ -159,7 +162,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                         let mut parser = Parser::new();
                         parser.advance(&buf[..n]).ok();
                         // Very naive: always serve index.html
-                        let _ = handle_request(&mut stream, "GET", "/", &[], &cfg_clone, &locale);
+                        let _ = handle_request(&mut stream, "HTTP/1.0", "GET", "/", &[], &cfg_clone, &locale, false);
                     }
                     let _ = stream.shutdown(std::net::Shutdown::Both);
                 });
@@ -170,9 +173,9 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     Ok(())
 }
 
-fn handle_request(stream: &mut TcpStream, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str) -> std::io::Result<()> {
+fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str, keep_alive: bool) -> std::io::Result<()> {
     if method != "GET" && method != "HEAD" {
-        respond_simple(stream, 405, translate(locale, "http.method_not_allowed"))?;
+        respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive)?;
         return Ok(());
     }
     let fs_path = sanitize_path(&cfg.root_dir, path);
@@ -203,9 +206,15 @@ fn handle_request(stream: &mut TcpStream, method: &str, path: &str, headers: &[(
             } else { contents };
             let mime = guess_mime(&fs_path);
             let mut headers = format!(
-                "HTTP/1.0 200 OK\r\nContent-Type: {}\r\nConnection: close\r\n",
+                "{} 200 OK\r\nContent-Type: {}\r\n",
+                version,
                 mime
             );
+            if keep_alive {
+                headers.push_str("Connection: keep-alive\r\n");
+            } else {
+                headers.push_str("Connection: close\r\n");
+            }
             headers.push_str(&format!("Content-Length: {}\r\n", body.len()));
             if accept_gzip { headers.push_str("Content-Encoding: gzip\r\n"); }
             headers.push_str("\r\n");
@@ -215,18 +224,25 @@ fn handle_request(stream: &mut TcpStream, method: &str, path: &str, headers: &[(
             }
         }
         Err(_) => {
-            respond_simple(stream, 404, translate(locale, "http.not_found"))?;
+            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive)?;
         }
     }
     Ok(())
 }
 
-fn respond_simple(stream: &mut TcpStream, status: u16, body: String) -> std::io::Result<()> {
-    let headers = format!(
-        "HTTP/1.0 {} \r\nContent-Length: {}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n",
+fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool) -> std::io::Result<()> {
+    let mut headers = format!(
+        "{} {} \r\nContent-Length: {}\r\nContent-Type: text/plain; charset=utf-8\r\n",
+        version,
         status,
         body.len()
     );
+    if keep_alive {
+        headers.push_str("Connection: keep-alive\r\n");
+    } else {
+        headers.push_str("Connection: close\r\n");
+    }
+    headers.push_str("\r\n");
     stream.write_all(headers.as_bytes())?;
     stream.write_all(body.as_bytes())?;
     Ok(())
