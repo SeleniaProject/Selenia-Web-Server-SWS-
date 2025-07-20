@@ -33,7 +33,7 @@ fn main() {
     );
     register_locale("ja", ja);
 
-    log_info!("Starting Selenia Web Server...");
+    log_info!("Starting Selenia Web Server using first listen address: {}", cfg.listen.get(0).cloned().unwrap_or_default());
     if let Err(e) = run_server(cfg) {
         log_error!("Server terminated: {}", e);
     }

@@ -3,13 +3,17 @@ use std::io;
 use std::path::Path;
 use std::io::ErrorKind;
 
-/// Server runtime configuration (simple key=value format).
+/// Runtime configuration loaded from YAML or simple key=value file. Fields are minimal and will
+/// grow as project evolves.
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
-    pub host: String,
-    pub port: u16,
+    /// List of listen addresses in "host:port" form (e.g., "0.0.0.0:80").
+    pub listen: Vec<String>,
     pub root_dir: String,
     pub locale: String,
+    /// Optional TLS certificate and private key paths.
+    pub tls_cert: Option<String>,
+    pub tls_key: Option<String>,
 }
 
 #[derive(Debug)]
@@ -43,10 +47,11 @@ impl ServerConfig {
             Err(e) => return Err(ConfigError::Io(e)),
         };
 
-        let mut host: Option<String> = None;
-        let mut port: Option<u16> = None;
+        let mut listen: Vec<String> = Vec::new();
         let mut root_dir: Option<String> = None;
         let mut locale: Option<String> = None;
+        let mut tls_cert: Option<String> = None;
+        let mut tls_key: Option<String> = None;
 
         let mut in_server = false;
         let mut server_indent: Option<usize> = None;
@@ -79,13 +84,12 @@ impl ServerConfig {
                     if p_indent<=listen_indent { break; }
                     if let Some(addr) = p_trim.strip_prefix('-') {
                         let addr = addr.trim().trim_matches(|c| c=='"' || c=='\'');
-                        if let Some((h, p_str)) = addr.rsplit_once(':') {
-                            if let Ok(p) = p_str.parse::<u16>() { host=Some(h.to_string()); port=Some(p); }
-                        }
-                        // first address is enough
-                        break;
+                        listen.push(addr.to_string());
                     }
                     let _ = lines.next();
+                }
+                if listen.is_empty() {
+                    return Err(ConfigError::InvalidFormat("listen list empty".into()));
                 }
             } else if trimmed.starts_with("root_dir:") || trimmed.starts_with("root:") {
                 if let Some(v) = trimmed.splitn(2, ':').nth(1) {
@@ -97,23 +101,36 @@ impl ServerConfig {
                     let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
                     locale = Some(val.to_string());
                 }
+            } else if trimmed.starts_with("tls:") {
+                // Parse nested tls block
+                let tls_indent = indent;
+                while let Some(peek) = lines.peek() {
+                    let p_indent = peek.chars().take_while(|c| c.is_whitespace()).count();
+                    let p_trim = peek.trim();
+                    if p_indent<=tls_indent { break; }
+                    if let Some(v) = p_trim.strip_prefix("cert:") {
+                        let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
+                        tls_cert = Some(val.to_string());
+                    }
+                    if let Some(v) = p_trim.strip_prefix("key:") {
+                        let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
+                        tls_key = Some(val.to_string());
+                    }
+                    let _ = lines.next();
+                }
             }
         }
 
         Ok(ServerConfig {
-            host: host.ok_or(ConfigError::MissingField("host"))?,
-            port: port.ok_or(ConfigError::MissingField("port"))?,
+            listen,
             root_dir: root_dir.ok_or(ConfigError::MissingField("root_dir"))?,
             locale: locale.ok_or(ConfigError::MissingField("locale"))?,
+            tls_cert,
+            tls_key,
         })
     }
 
-    /// Load configuration from a simple key=value file.
-    /// Example:
-    /// host=0.0.0.0
-    /// port=8080
-    /// root_dir=www
-    /// locale=ja
+    /// Legacy key=value loader (host,port,root_dir,locale). Returns single-address listen vector.
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let content = fs::read_to_string(path)?;
         let mut host = None;
@@ -142,11 +159,14 @@ impl ServerConfig {
             }
         }
 
+        let h = host.ok_or(ConfigError::MissingField("host"))?;
+        let p = port.ok_or(ConfigError::MissingField("port"))?;
         Ok(ServerConfig {
-            host: host.ok_or(ConfigError::MissingField("host"))?,
-            port: port.ok_or(ConfigError::MissingField("port"))?,
+            listen: vec![format!("{}:{}", h,p)],
             root_dir: root_dir.ok_or(ConfigError::MissingField("root_dir"))?,
             locale: locale.ok_or(ConfigError::MissingField("locale"))?,
+            tls_cert: None,
+            tls_key: None,
         })
     }
 } 

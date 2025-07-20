@@ -21,12 +21,24 @@ mod zerocopy;
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。
 pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
-    let listener = TcpListener::bind(format!("{}:{}", cfg.host, cfg.port))?;
-    listener.set_nonblocking(true)?;
-    log_info!("SWS listening on http://{}:{}", cfg.host, cfg.port);
+    // Bind all configured listen addresses.
+    if cfg.listen.is_empty() { return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "No listen addresses")); }
+
+    let mut listeners = Vec::new();
+    for addr in &cfg.listen {
+        let lst = TcpListener::bind(addr)?;
+        lst.set_nonblocking(true)?;
+        log_info!("SWS listening on http://{}", addr);
+        listeners.push(lst);
+    }
 
     let mut ev = EventLoop::new()?;
-    let listener_token = ev.register(&listener, Interest::Readable)?;
+    use std::collections::HashMap;
+    let mut listener_map: HashMap<usize, usize> = HashMap::new(); // token -> index in listeners
+    for (idx, lst) in listeners.iter().enumerate() {
+        let t = ev.register(lst, Interest::Readable)?;
+        listener_map.insert(t, idx);
+    }
 
     const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -44,10 +56,10 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         // 1000ms タイムアウトでポーリング
         let events = ev.poll(1000)?;
         for (token, readable, _writable) in events {
-            if token == listener_token && readable {
+            if listener_map.contains_key(&token) && readable {
                 // accept ループ
                 loop {
-                    match listener.accept() {
+                    match listeners[*listener_map.get(&token).unwrap()].accept() {
                         Ok((stream, _)) => {
                             stream.set_nonblocking(true)?;
                             let t = ev.register(&stream, Interest::Readable)?;
@@ -163,8 +175,9 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     use std::io::{Read, Write};
     use std::thread;
 
-    let listener = TcpListener::bind(format!("{}:{}", cfg.host, cfg.port))?;
-    log_info!("SWS listening on http://{}:{}", cfg.host, cfg.port);
+    if cfg.listen.is_empty() { return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "No listen addresses")); }
+    let listener = TcpListener::bind(&cfg.listen[0])?;
+    log_info!("SWS listening on http://{}", cfg.listen[0]);
 
     for stream in listener.incoming() {
         match stream {
