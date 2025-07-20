@@ -26,7 +26,7 @@
 - [x] Keep-Alive connection pool auto-tune
 
 ### 3.2 HTTP/2
-- [ ] HPACK 圧縮/展開完全実装
+- [x] HPACK 圧縮/展開完全実装
 - [ ] ストリーム優先度ツリー & フロー制御
 
 ### 3.3 HTTP/3 (QUIC)
