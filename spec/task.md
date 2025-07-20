@@ -73,15 +73,15 @@
 - [x] SBOM 自動生成 & cosign 署名
 
 ## 9. Security & Hardening
-- [ ] memfd_secret TLS key loader
-- [ ] Live-Patch 差分適用エンジン
-- [ ] seccomp-BPF allowlist 自動生成
-- [ ] supply-chain SBOM / CVE bot integration
+- [x] memfd_secret TLS key loader
+- [x] Live-Patch 差分適用エンジン
+- [x] seccomp-BPF allowlist 自動生成
+- [x] supply-chain SBOM / CVE bot integration
 
 ## 10. Deployment / Packaging
-- [ ] Single static binary (`cargo strip`, `upx`)
-- [ ] Multi-arch Docker build (`scratch` 6 MB)
-- [ ] Helm / K8s Manifests with readiness & liveness probes
+- [x] Single static binary (`cargo strip`, `upx`)
+- [x] Multi-arch Docker build (`scratch` 6 MB)
+- [x] Helm / K8s Manifests with readiness & liveness probes
 
 ## 11. Performance Benchmarks
 - [ ] wrk2 シナリオ (HTTP/1) 260 Gbps 達成

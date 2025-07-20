@@ -75,5 +75,6 @@ pub mod aes_gcm;
 pub mod tls;
 pub mod tls13;
 pub mod ocsp;
+pub mod memfd_secret;
 
 // 以降のメッセージは後続フェーズで追加予定 

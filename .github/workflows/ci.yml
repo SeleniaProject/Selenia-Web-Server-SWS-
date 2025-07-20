@@ -32,11 +32,22 @@ jobs:
         run: cargo run --bin bench --release || true
       - name: Build release artefact
         run: cargo build --release --target ${{ matrix.target }}
+      - name: Build multi-arch Docker image
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          platforms: linux/amd64,linux/arm64
+          tags: sws:test
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
           path: ./target/${{ matrix.target }}/release/
           output-file: sbom_${{ matrix.target }}.spdx.json
+      - name: CVE Scan
+        uses: anchore/scan-action@v3
+        with:
+          path: target/${{ matrix.target }}/release/
+          severity-cutoff: medium
       - name: Cosign Sign SBOM
         uses: sigstore/cosign-installer@main
       - name: Sign

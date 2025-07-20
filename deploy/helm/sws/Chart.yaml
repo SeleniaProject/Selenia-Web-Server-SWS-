@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sws
+version: 0.1.0
+appVersion: "0.1.0"
+description: Selenia Web Server Helm Chart
+type: application 
