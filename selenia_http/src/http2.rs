@@ -5,6 +5,202 @@ use std::io::{self, Write};
 use std::net::TcpStream;
 use super::hpack;
 
+use std::collections::{HashMap, VecDeque};
+
+// -------------------------- Priority Tree ------------------------------
+/// Represents a single HTTP/2 stream node inside the priority tree.
+#[derive(Debug)]
+struct StreamNode {
+    id: u32,
+    weight: u16,          // weight is 1–256 in RFC 7540, we store 1–256
+    parent: u32,          // parent stream id (0 = root)
+    children: Vec<u32>,   // immediate children stream ids
+    queued_bytes: usize,  // currently buffered payload bytes waiting for send
+}
+
+impl StreamNode {
+    fn new(id: u32, parent: u32, weight: u16) -> Self {
+        Self { id, weight: weight.max(1), parent, children: Vec::new(), queued_bytes: 0 }
+    }
+}
+
+/// Priority tree root is virtual stream 0.
+#[derive(Default)]
+struct PriorityTree {
+    nodes: HashMap<u32, StreamNode>,
+}
+
+impl PriorityTree {
+    fn new() -> Self {
+        let mut pt = PriorityTree { nodes: HashMap::new() };
+        // insert root phantom node id 0
+        pt.nodes.insert(0, StreamNode::new(0, 0, 16));
+        pt
+    }
+
+    /// Insert new stream with given priority spec.
+    /// RFC 7540 §5.3 allows exclusive flag; if exclusive == true, new parent becomes sole child.
+    fn add_stream(&mut self, id: u32, parent: u32, weight: u16, exclusive: bool) {
+        let parent_id = if parent == id { 0 } else { parent };
+        self.ensure_node(parent_id);
+        let mut node = StreamNode::new(id, parent_id, weight);
+        if exclusive {
+            // move existing children of parent under new node.
+            let children = self.nodes.get_mut(&parent_id).unwrap().children.split_off(0);
+            node.children = children.clone();
+            for c in &children {
+                if let Some(ch) = self.nodes.get_mut(c) { ch.parent = id; }
+            }
+        }
+        self.nodes.insert(id, node);
+        self.nodes.get_mut(&parent_id).unwrap().children.push(id);
+    }
+
+    /// Update priority of existing stream (may reparent).
+    fn reprioritize(&mut self, id: u32, new_parent: u32, weight: u16, exclusive: bool) {
+        if !self.nodes.contains_key(&id) { return; }
+        let old_parent = self.nodes[&id].parent;
+        if let Some(vec) = self.nodes.get_mut(&old_parent) {
+            vec.children.retain(|&c| c != id);
+        }
+        let parent_id = if new_parent == id { 0 } else { new_parent };
+        self.ensure_node(parent_id);
+        self.nodes.get_mut(&id).unwrap().parent = parent_id;
+        self.nodes.get_mut(&id).unwrap().weight = weight.max(1);
+        if exclusive {
+            // move children
+            let children = self.nodes.get_mut(&parent_id).unwrap().children.split_off(0);
+            self.nodes.get_mut(&id).unwrap().children.extend(children.clone());
+            for c in &children {
+                if let Some(ch) = self.nodes.get_mut(c) { ch.parent = id; }
+            }
+        }
+        self.nodes.get_mut(&parent_id).unwrap().children.push(id);
+    }
+
+    /// Mark bytes ready for a stream; O(1) update of queued_bytes.
+    fn enqueue_bytes(&mut self, id: u32, bytes: usize) {
+        self.ensure_node(id);
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.queued_bytes += bytes;
+        }
+    }
+
+    /// Return next stream id to send according to simple weighted round robin algorithm.
+    /// Algorithm: traverse tree breadth-first keeping parent weights; pick first stream with queued_bytes > 0.
+    fn pop_next_stream(&mut self) -> Option<u32> {
+        let mut q: VecDeque<(u32, f32)> = VecDeque::new();
+        q.push_back((0, 1.0));
+        while let Some((id, ratio)) = q.pop_front() {
+            let node = self.nodes.get(&id)?;
+            // distribute share to children proportionally to weight
+            let total_w: u32 = node.children.iter().map(|c| self.nodes[c].weight as u32).sum();
+            if total_w == 0 { continue; }
+            for c in &node.children {
+                let child = &self.nodes[c];
+                let share = ratio * (child.weight as f32 / total_w as f32);
+                if child.queued_bytes > 0 {
+                    // Accept if share above small threshold.
+                    if share > 0.0001 {
+                        // consume detection only; we keep bytes until flow control actually writes.
+                        return Some(child.id);
+                    }
+                }
+                q.push_back((child.id, share));
+            }
+        }
+        None
+    }
+
+    fn ensure_node(&mut self, id: u32) {
+        if !self.nodes.contains_key(&id) {
+            // orphan nodes attach to root.
+            self.nodes.insert(id, StreamNode::new(id, 0, 16));
+            self.nodes.get_mut(&0).unwrap().children.push(id);
+        }
+    }
+}
+
+// -------------------------- Flow Control -------------------------------
+const DEFAULT_CONN_WINDOW: i32 = 65_535;
+const DEFAULT_STREAM_WINDOW: i32 = 65_535;
+
+#[derive(Default)]
+struct FlowControl {
+    conn_window: i32,
+    stream_windows: HashMap<u32, i32>,
+}
+
+impl FlowControl {
+    fn new() -> Self { Self { conn_window: DEFAULT_CONN_WINDOW, stream_windows: HashMap::new() } }
+
+    fn window_for(&mut self, id: u32) -> i32 {
+        *self.stream_windows.entry(id).or_insert(DEFAULT_STREAM_WINDOW)
+    }
+
+    /// Try to reserve `len` bytes for sending on stream `id`.
+    /// Returns true if reservation is allowed; otherwise false (caller must wait for WINDOW_UPDATE).
+    fn try_reserve(&mut self, id: u32, len: i32) -> bool {
+        let sw = self.window_for(id);
+        if self.conn_window < len || sw < len { return false; }
+        self.conn_window -= len;
+        *self.stream_windows.get_mut(&id).unwrap() -= len;
+        true
+    }
+
+    /// Process WINDOW_UPDATE frame.
+    fn update_window(&mut self, id: u32, increment: i32) {
+        if id == 0 {
+            self.conn_window = (self.conn_window + increment).min(i32::MAX);
+        } else {
+            let w = self.stream_windows.entry(id).or_insert(DEFAULT_STREAM_WINDOW);
+            *w = (*w + increment).min(i32::MAX);
+        }
+    }
+}
+
+// -------------------------- Scheduler Wrapper --------------------------
+/// Combines priority tree and flow control into a scheduler usable by the HTTP/2 state machine.
+pub struct Scheduler {
+    ptree: PriorityTree,
+    fc: FlowControl,
+}
+
+impl Scheduler {
+    pub fn new() -> Self { Self { ptree: PriorityTree::new(), fc: FlowControl::new() } }
+
+    /// Called when application queues DATA for a stream.
+    pub fn queue_data(&mut self, stream_id: u32, bytes: usize) {
+        self.ptree.enqueue_bytes(stream_id, bytes);
+    }
+
+    /// Select next stream ready to transmit considering flow control.
+    pub fn next_stream(&mut self, frame_size: usize) -> Option<u32> {
+        if let Some(id) = self.ptree.pop_next_stream() {
+            if self.fc.try_reserve(id, frame_size as i32) {
+                // decrease queued bytes
+                if let Some(node) = self.ptree.nodes.get_mut(&id) {
+                    node.queued_bytes = node.queued_bytes.saturating_sub(frame_size);
+                }
+                return Some(id);
+            }
+        }
+        None
+    }
+
+    /// Apply WINDOW_UPDATE.
+    pub fn on_window_update(&mut self, stream_id: u32, inc: i32) { self.fc.update_window(stream_id, inc); }
+
+    /// Handle PRIORITY frame (re-)assignment.
+    pub fn on_priority(&mut self, id: u32, parent: u32, weight: u16, exclusive: bool) {
+        if self.ptree.nodes.contains_key(&id) {
+            self.ptree.reprioritize(id, parent, weight, exclusive);
+        } else {
+            self.ptree.add_stream(id, parent, weight, exclusive);
+        }
+    }
+}
+
 const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 #[repr(u8)]
