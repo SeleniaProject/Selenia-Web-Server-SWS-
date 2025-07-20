@@ -21,6 +21,7 @@ use parser::Parser;
 mod compress;
 mod zerocopy;
 mod http2;
+mod http3;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。

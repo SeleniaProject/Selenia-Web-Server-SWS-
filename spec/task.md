@@ -30,7 +30,7 @@
 - [x] ストリーム優先度ツリー & フロー制御
 
 ### 3.3 HTTP/3 (QUIC)
-- [ ] QUIC Transport ハンドシェイク
+- [x] QUIC Transport ハンドシェイク
 - [ ] QPACK 圧縮/展開
 - [ ] 0-RTT / Retry / Datagram Extension
 
