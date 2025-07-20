@@ -18,6 +18,7 @@ mod parser;
 use parser::Parser;
 mod compress;
 mod zerocopy;
+mod http2;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。
@@ -49,6 +50,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         buf: Vec<u8>,
         parser: Parser,
         last_active: Instant,
+        peer: String,
     }
 
     let mut conns: HashMap<usize, Conn> = HashMap::new();
@@ -61,7 +63,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                 // accept ループ
                 loop {
                     match listeners[*listener_map.get(&token).unwrap()].accept() {
-                        Ok((stream, _)) => {
+                        Ok((stream, addr)) => {
                             stream.set_nonblocking(true)?;
                             let t = ev.register(&stream, Interest::Readable)?;
                             conns.insert(
@@ -71,6 +73,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                                     buf: Vec::new(),
                                     parser: Parser::new(),
                                     last_active: Instant::now(),
+                                    peer: addr.to_string(),
                                 },
                             );
                         }
@@ -113,6 +116,13 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                         }
                     }
 
+                    // HTTP/2 prior knowledge (PRI * HTTP/2.0...) detection
+                    if http2::is_preface(&conn.buf) {
+                        let _ = http2::send_preface_response(&mut conn.stream);
+                        ev.deregister(token)?;
+                        continue;
+                    }
+
                     loop {
                         match conn.parser.advance(&conn.buf) {
                             Ok(Some((req, consumed))) => {
@@ -128,6 +138,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                                     &cfg,
                                     &cfg.locale,
                                     keep_alive,
+                                    &conn.peer,
                                 )?;
                                 // remove consumed bytes (Parser consumed data)
                                 conn.buf.drain(0..consumed);
@@ -191,7 +202,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                         let mut parser = Parser::new();
                         parser.advance(&buf[..n]).ok();
                         // Very naive: always serve index.html
-                        let _ = handle_request(&mut stream, "HTTP/1.0", "GET", "/", &[], &cfg_clone, &locale, false);
+                        let _ = handle_request(&mut stream, "HTTP/1.0", "GET", "/", &[], &cfg_clone, &locale, false, "127.0.0.1");
                     }
                     let _ = stream.shutdown(std::net::Shutdown::Both);
                 });
@@ -202,7 +213,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     Ok(())
 }
 
-fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str, keep_alive: bool) -> std::io::Result<()> {
+fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str, keep_alive: bool, peer: &str) -> std::io::Result<()> {
     if method != "GET" && method != "HEAD" {
         respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive)?;
         return Ok(());
@@ -283,10 +294,12 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
                     }
                 }
             }
+            log_info!("{} - \"{} {}\" 200 {}", peer, method, path, body.len());
         }
         Err(_) => {
             metrics::inc_requests(); metrics::inc_errors();
             respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive)?;
+            log_info!("{} - \"{} {}\" 404 0", peer, method, path);
         }
     }
     Ok(())
