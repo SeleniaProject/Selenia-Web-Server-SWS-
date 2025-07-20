@@ -44,11 +44,21 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use super::*;
-    use winapi::um::ntsecapi::RtlGenRandom;
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        // BOOL SystemFunction036(PVOID RandomBuffer, ULONG RandomBufferLength);
+        #[link_name = "SystemFunction036"]
+        fn rtl_gen_random(buf: *mut core::ffi::c_void, len: u32) -> i32;
+    }
 
     pub fn fill(buf: &mut [u8]) -> io::Result<()> {
-        let ret = unsafe { RtlGenRandom(buf.as_mut_ptr() as *mut _, buf.len() as u32) };
-        if ret==0 { Err(io::Error::new(io::ErrorKind::Other,"RtlGenRandom failed")) } else { Ok(()) }
+        let ret = unsafe { rtl_gen_random(buf.as_mut_ptr() as *mut _, buf.len() as u32) };
+        if ret == 0 {
+            Err(io::Error::new(io::ErrorKind::Other, "RtlGenRandom failed"))
+        } else {
+            Ok(())
+        }
     }
 }
 

@@ -35,12 +35,13 @@ pub fn transfer(stream: &TcpStream, file: &File, file_len: u64) -> io::Result<()
     {
         // Portable fallback – copy via userspace buffer (64 KiB).
         let mut reader = file;
+        let mut writer = stream; // Obtain mutable borrow for Write trait
         let mut buf = [0u8; 65536];
         let mut written: u64 = 0;
         while written < file_len {
             let n = reader.read(&mut buf)?;
             if n == 0 { break; }
-            stream.write_all(&buf[..n])?;
+            writer.write_all(&buf[..n])?;
             written += n as u64;
         }
         return Ok(());
