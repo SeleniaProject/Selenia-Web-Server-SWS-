@@ -15,6 +15,13 @@ pub struct ServerConfig {
     /// Optional TLS certificate and private key paths.
     pub tls_cert: Option<String>,
     pub tls_key: Option<String>,
+    pub cache: Option<CacheConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CacheConfig {
+    pub max_age: u32,
+    pub stale_while_revalidate: u32,
 }
 
 #[derive(Debug)]
@@ -53,6 +60,7 @@ impl ServerConfig {
         let mut locale: Option<String> = None;
         let mut tls_cert: Option<String> = None;
         let mut tls_key: Option<String> = None;
+        let mut cache_cfg: Option<CacheConfig> = None;
 
         let mut in_server = false;
         let mut server_indent: Option<usize> = None;
@@ -119,6 +127,25 @@ impl ServerConfig {
                     }
                     let _ = lines.next();
                 }
+            } else if trimmed.starts_with("cache:") {
+                let cache_indent = indent;
+                let mut max_age: Option<u32> = None;
+                let mut swr: Option<u32> = None;
+                while let Some(peek) = lines.peek() {
+                    let p_indent = peek.chars().take_while(|c| c.is_whitespace()).count();
+                    let p_trim = peek.trim();
+                    if p_indent<=cache_indent { break; }
+                    if let Some(v) = p_trim.strip_prefix("max_age:") {
+                        max_age = v.trim().parse().ok();
+                    }
+                    if let Some(v) = p_trim.strip_prefix("stale_while_revalidate:") {
+                        swr = v.trim().parse().ok();
+                    }
+                    let _ = lines.next();
+                }
+                if let (Some(ma), Some(sr)) = (max_age, swr) {
+                    cache_cfg = Some(CacheConfig{max_age:ma, stale_while_revalidate:sr});
+                }
             }
         }
 
@@ -129,6 +156,7 @@ impl ServerConfig {
             locale: locale.ok_or(ConfigError::MissingField("locale"))?,
             tls_cert,
             tls_key,
+            cache: cache_cfg,
         })
     }
 
@@ -169,6 +197,7 @@ impl ServerConfig {
             locale: locale.ok_or(ConfigError::MissingField("locale"))?,
             tls_cert: None,
             tls_key: None,
+            cache: None,
         })
     }
 }

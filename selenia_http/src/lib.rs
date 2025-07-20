@@ -238,6 +238,9 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
                 version,
                 mime
             );
+            if let Some(cache) = &cfg.cache {
+                headers.push_str(&format!("Cache-Control: max-age={}, stale-while-revalidate={}\r\n", cache.max_age, cache.stale_while_revalidate));
+            }
             if keep_alive {
                 headers.push_str("Connection: keep-alive\r\n");
                 headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
