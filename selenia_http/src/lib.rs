@@ -214,6 +214,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             );
             if keep_alive {
                 headers.push_str("Connection: keep-alive\r\n");
+                headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
             } else {
                 headers.push_str("Connection: close\r\n");
             }
@@ -250,6 +251,7 @@ fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: Stri
     );
     if keep_alive {
         headers.push_str("Connection: keep-alive\r\n");
+        headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
     } else {
         headers.push_str("Connection: close\r\n");
     }
