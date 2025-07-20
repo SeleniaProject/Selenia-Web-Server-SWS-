@@ -32,7 +32,7 @@
 ### 3.3 HTTP/3 (QUIC)
 - [x] QUIC Transport ハンドシェイク
 - [x] QPACK 圧縮/展開
-- [ ] 0-RTT / Retry / Datagram Extension
+- [x] 0-RTT / Retry / Datagram Extension
 
 ### 3.4 共通
 - [ ] Range / Conditional / ETag 処理
