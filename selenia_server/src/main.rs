@@ -61,6 +61,36 @@ mod unix_master {
 }
 
 fn main() {
+    // CLI subcommand quick dispatch
+    let mut args_iter = env::args().skip(1);
+    if let Some(cmd) = args_iter.next() {
+        match cmd.as_str() {
+            "start" => {/* fallthrough to normal flow*/},
+            "stop" => { // send SIGTERM to master pid
+                #[cfg(unix)] {
+                    if let Ok(pid_str)=std::fs::read_to_string("sws.pid") { if let Ok(pid)=pid_str.trim().parse::<i32>() {
+                        unsafe{ libc::kill(pid, libc::SIGTERM); }
+                        println!("Sent SIGTERM to {}", pid);
+                        return;
+                    }}
+                }
+                println!("stop not supported on this platform or pidfile missing"); return;
+            },
+            "reload" => { #[cfg(unix)] {
+                    if let Ok(pid_str)=std::fs::read_to_string("sws.pid") { if let Ok(pid)=pid_str.trim().parse::<i32>() {
+                        unsafe{ libc::kill(pid, libc::SIGHUP); }
+                        println!("Sent SIGHUP to {}", pid);
+                        return;
+                    }}
+            }
+            println!("reload not supported"); return; },
+            "benchmark" => { let _=Command::new(env::current_exe().unwrap()).arg("bench").status(); return; },
+            "plugin" => { println!("plugin subcommand placeholder"); return; },
+            "locale" => { println!("locale compile placeholder"); return; },
+            _ => { /* treat as cfg path or default*/ }
+        }
+    }
+
     // Detect role.
     let is_worker = env::var("SWS_ROLE").map_or(false, |v| v == "worker");
     let args: Vec<String> = env::args().collect();

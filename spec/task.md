@@ -62,7 +62,7 @@
 
 ## 7. Operations / CLI
 - [x] ベンチマークツール (`tools/bench.rs`)
-- [ ] `sws start|stop|reload|benchmark|plugin|locale` CLI サブコマンド実装
+- [x] `sws start|stop|reload|benchmark|plugin|locale` CLI サブコマンド実装
 - [ ] `sws plugin install/validate` flow
 - [ ] Zero-Downtime Reload ワークフロー
 
