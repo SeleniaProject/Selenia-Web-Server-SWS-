@@ -40,7 +40,7 @@
 - [ ] Brotli / Zstd 実装完了
 
 ## 4. Plugin & Sandbox
-- [ ] C ABI Plugin Loader (`cdylib`)
+- [x] C ABI Plugin Loader (`cdylib`)
 - [ ] WASM Edge Function (WASI Snapshot)
 - [ ] Capability / seccomp 制限
 
