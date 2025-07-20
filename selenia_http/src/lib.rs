@@ -118,6 +118,12 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
 
                     conn.last_active = Instant::now();
 
+                    if !selenia_core::ratelimit::allow(&conn.peer) {
+                        // 429 Too Many Requests
+                        let _ = conn.stream.write_all(b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        ev.deregister(token)?; continue;
+                    }
+
                     // TLS detection: if first byte indicates handshake (0x16) and buf has at least 5 bytes, treat as TLS
                     if conn.buf.get(0) == Some(&0x16) && conn.buf.len()>=5 {
                         let rec_len = u16::from_be_bytes([conn.buf[3],conn.buf[4]]) as usize;

@@ -51,7 +51,7 @@
 - [x] JWT RBAC ミドルウェア
 - [x] WAF Skeleton (`waf.rs`)
 - [x] eBPF inline rule evaluator
-- [ ] Token bucket Rate-Limit
+- [x] Token bucket Rate-Limit
 
 ## 6. Observability
 - [x] 構造化 JSON ロガー (`logger.rs`)
