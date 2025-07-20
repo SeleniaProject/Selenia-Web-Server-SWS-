@@ -8,4 +8,6 @@ pub mod signals;
 pub mod plugin;
 pub mod waf;
 pub mod dns;
-pub mod wasm; 
+pub mod wasm;
+pub mod seccomp;
+pub mod ebpf; 

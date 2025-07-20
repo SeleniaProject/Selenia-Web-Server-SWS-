@@ -50,7 +50,7 @@
 - [x] locale / i18n 骨格 (`locale.rs`)
 - [x] JWT RBAC ミドルウェア
 - [x] WAF Skeleton (`waf.rs`)
-- [ ] eBPF inline rule evaluator
+- [x] eBPF inline rule evaluator
 - [ ] Token bucket Rate-Limit
 
 ## 6. Observability
