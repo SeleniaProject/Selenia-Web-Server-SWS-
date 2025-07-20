@@ -8,6 +8,14 @@ use std::io::{self, ErrorKind};
 // TLS record content types
 pub const CT_HANDSHAKE: u8 = 22;
 
+/// TLS 1.3 handshake message types
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HsType {
+    ClientHello = 1,
+    ServerHello = 2,
+    // others omitted
+}
+
 #[derive(Debug)]
 pub struct TlsRecord<'a> {
     pub content_type: u8,
@@ -35,6 +43,44 @@ impl<'a> TlsRecord<'a> {
         out.extend_from_slice(payload);
         out
     }
+}
+
+// ---------------- ClientHello parser ----------------
+
+#[derive(Debug)]
+pub struct ClientHello<'a> {
+    pub legacy_version: u16,
+    pub random: &'a [u8;32],
+    pub session_id: &'a [u8],
+    pub cipher_suites: &'a [u8],
+    pub extensions: &'a [u8],
+}
+
+/// Parse ClientHello message from a handshake payload (excluding record header).
+pub fn parse_client_hello(buf: &[u8]) -> io::Result<ClientHello> {
+    if buf.is_empty() { return Err(io::Error::new(ErrorKind::UnexpectedEof, "empty")); }
+    if buf[0] != HsType::ClientHello as u8 { return Err(io::Error::new(ErrorKind::InvalidData, "not ClientHello")); }
+    if buf.len()<4 { return Err(io::Error::new(ErrorKind::UnexpectedEof, "len")); }
+    let len = ((buf[1] as usize)<<16)|((buf[2] as usize)<<8)|(buf[3] as usize);
+    if buf.len()<4+len { return Err(io::Error::new(ErrorKind::UnexpectedEof, "body")); }
+    let mut idx=4;
+    if len < 34 { return Err(io::Error::new(ErrorKind::InvalidData, "short")); }
+    let legacy_version = u16::from_be_bytes([buf[idx],buf[idx+1]]); idx+=2;
+    let random_slice: &[u8;32] = buf[idx..idx+32].try_into().unwrap(); idx+=32;
+    let sid_len = buf[idx] as usize; idx+=1;
+    if idx+sid_len>buf.len() {return Err(io::Error::new(ErrorKind::UnexpectedEof,"sid"));}
+    let session_id = &buf[idx..idx+sid_len]; idx+=sid_len;
+    if idx+2>buf.len(){return Err(io::Error::new(ErrorKind::UnexpectedEof,"cs len"));}
+    let cs_len = u16::from_be_bytes([buf[idx],buf[idx+1]]) as usize; idx+=2;
+    if idx+cs_len>buf.len(){return Err(io::Error::new(ErrorKind::UnexpectedEof,"ciphers"));}
+    let cipher_suites = &buf[idx..idx+cs_len]; idx+=cs_len;
+    if idx>=buf.len(){return Err(io::Error::new(ErrorKind::UnexpectedEof,"comp len"));}
+    let comp_len = buf[idx] as usize; idx+=1+comp_len; // skip compression methods
+    if idx+2>buf.len(){return Err(io::Error::new(ErrorKind::UnexpectedEof,"ext len"));}
+    let ext_len = u16::from_be_bytes([buf[idx],buf[idx+1]]) as usize; idx+=2;
+    if idx+ext_len>buf.len(){return Err(io::Error::new(ErrorKind::UnexpectedEof,"ext data"));}
+    let extensions = &buf[idx..idx+ext_len];
+    Ok(ClientHello{legacy_version,random:random_slice,session_id,cipher_suites,extensions})
 }
 
 // ---------- ServerHello builder ----------
