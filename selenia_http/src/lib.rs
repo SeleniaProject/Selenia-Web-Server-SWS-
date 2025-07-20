@@ -24,6 +24,7 @@ mod zerocopy;
 mod http2;
 mod http3;
 mod qpack;
+mod router;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。

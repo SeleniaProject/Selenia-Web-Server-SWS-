@@ -45,7 +45,7 @@
 - [x] Capability / seccomp 制限
 
 ## 5. Routing / RBAC / WAF
-- [ ] Radix ツリー Router (rewrite, redirect, proxy)
+- [x] Radix ツリー Router (rewrite, redirect, proxy)
 - [x] YAML ベース設定ローダ (`config.rs`)
 - [x] locale / i18n 骨格 (`locale.rs`)
 - [ ] JWT RBAC ミドルウェア
