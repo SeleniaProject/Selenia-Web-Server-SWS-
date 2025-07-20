@@ -6,6 +6,7 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, Duration};
+use std::fs::File;
 
 use selenia_core::{log_info, log_warn, log_error};
 
@@ -14,6 +15,7 @@ use selenia_core::os::{EventLoop, Interest};
 mod parser;
 use parser::Parser;
 mod compress;
+mod zerocopy;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。
@@ -220,7 +222,16 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             headers.push_str("\r\n");
             stream.write_all(headers.as_bytes())?;
             if method != "HEAD" {
-                stream.write_all(&body)?;
+                if accept_gzip {
+                    stream.write_all(&body)?;
+                } else {
+                    // Zero-copy path
+                    if let Ok(file) = File::open(&fs_path) {
+                        let _ = zerocopy::transfer(stream, &file, body.len() as u64);
+                    } else {
+                        stream.write_all(&body)?; // fallback
+                    }
+                }
             }
         }
         Err(_) => {
