@@ -10,6 +10,7 @@ use std::fs::File;
 
 use selenia_core::{log_info, log_warn, log_error};
 use selenia_core::metrics;
+use selenia_core::signals;
 use selenia_core::crypto::tls;
 
 #[cfg(unix)]
@@ -35,6 +36,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     }
 
     let mut ev = EventLoop::new()?;
+    signals::init_term_signals();
     use std::collections::HashMap;
     let mut listener_map: HashMap<usize, usize> = HashMap::new(); // token -> index in listeners
     for (idx, lst) in listeners.iter().enumerate() {
@@ -56,6 +58,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     let mut conns: HashMap<usize, Conn> = HashMap::new();
 
     loop {
+        if signals::should_terminate() { break; }
         // 1000ms タイムアウトでポーリング
         let events = ev.poll(1000)?;
         for (token, readable, _writable) in events {
