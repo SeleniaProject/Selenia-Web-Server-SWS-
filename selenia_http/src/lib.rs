@@ -45,7 +45,9 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         listener_map.insert(t, idx);
     }
 
-    const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+    let mut idle_timeout = Duration::from_secs(30);
+    let mut req_count: u64 = 0;
+    let mut last_adjust = Instant::now();
 
     #[derive(Debug)]
     struct Conn {
@@ -148,6 +150,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                                     keep_alive,
                                     &conn.peer,
                                 )?;
+                                req_count += 1;
                                 // remove consumed bytes (Parser consumed data)
                                 conn.buf.drain(0..consumed);
 
@@ -174,7 +177,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         let now = Instant::now();
         let mut to_remove = Vec::new();
         for (&tok, c) in &conns {
-            if now.duration_since(c.last_active) > IDLE_TIMEOUT {
+            if now.duration_since(c.last_active) > idle_timeout {
                 to_remove.push(tok);
             }
         }
@@ -183,6 +186,21 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                 let _ = ev.deregister(tok);
                 let _ = c.stream.shutdown(std::net::Shutdown::Both);
             }
+        }
+
+        // Auto-tune idle timeout every 1000 requests or 30 s, whichever comes first
+        if req_count >= 1000 || last_adjust.elapsed() > Duration::from_secs(30) {
+            // Simple heuristic: if active connections exceed 75% of concurrency, shorten timeout, else lengthen up to 60s.
+            let active = conns.len();
+            let capacity = listener_map.len() * 1024; // arbitrary capacity per listener
+            let load = active as f32 / capacity as f32;
+            if load > 0.75 {
+                idle_timeout = idle_timeout.saturating_sub(Duration::from_secs(5)).max(Duration::from_secs(5));
+            } else if load < 0.25 {
+                idle_timeout = (idle_timeout + Duration::from_secs(5)).min(Duration::from_secs(60));
+            }
+            req_count = 0;
+            last_adjust = Instant::now();
         }
     }
 }

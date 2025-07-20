@@ -23,7 +23,7 @@
 ### 3.1 HTTP/1.x
 - [x] 手書き 0-alloc パーサ (`parser.rs`)
 - [x] 静的ファイル送出 (sendfile / TransmitFile)
-- [ ] Keep-Alive connection pool auto-tune
+- [x] Keep-Alive connection pool auto-tune
 
 ### 3.2 HTTP/2
 - [ ] HPACK 圧縮/展開完全実装
