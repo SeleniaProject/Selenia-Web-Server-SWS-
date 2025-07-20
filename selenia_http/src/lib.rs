@@ -11,6 +11,7 @@ use std::fs::File;
 use selenia_core::{log_info, log_warn, log_error};
 use selenia_core::metrics;
 use selenia_core::signals;
+use selenia_core::waf;
 use selenia_core::crypto::tls;
 
 #[cfg(unix)]
@@ -59,6 +60,9 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
 
     loop {
         if signals::should_terminate() { break; }
+        if signals::take_reload_request() {
+            log_info!("Reload requested (SIGHUP) – future implementation to apply new config");
+        }
         // 1000ms タイムアウトでポーリング
         let events = ev.poll(1000)?;
         for (token, readable, _writable) in events {
@@ -217,6 +221,10 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
 }
 
 fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str, keep_alive: bool, peer: &str) -> std::io::Result<()> {
+    if !waf::evaluate(method, path, &headers.iter().map(|(a,b)|(a.to_string(),b.to_string())).collect::<Vec<_>>()) {
+        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive)?; return Ok(());
+    }
+
     if method != "GET" && method != "HEAD" {
         respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive)?;
         return Ok(());
