@@ -70,6 +70,8 @@ pub mod hkdf;
 pub mod chacha20;
 pub mod poly1305;
 pub mod aead;
+pub mod aes;
+pub mod aes_gcm;
 pub mod tls;
 
 // 以降のメッセージは後続フェーズで追加予定 

@@ -15,7 +15,7 @@
 - [x] ChaCha20 (RFC8439) 実装
 - [x] Poly1305 (RFC8439) 実装
 - [x] SHA-256 / HMAC / HKDF
-- [ ] AES-GCM (software fallback + AES-NI)
+- [x] AES-GCM (software fallback + AES-NI)
 - [ ] TLS 1.3 握手 & レコードレイヤ
 - [ ] OCSP Stapling / HSTS 自動付与
 
