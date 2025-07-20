@@ -35,7 +35,7 @@
 - [x] 0-RTT / Retry / Datagram Extension
 
 ### 3.4 共通
-- [ ] Range / Conditional / ETag 処理
+- [x] Range / Conditional / ETag 処理
 - [x] Gzip / Deflate 圧縮
 - [ ] Brotli / Zstd 実装完了
 

@@ -13,6 +13,7 @@ use selenia_core::metrics;
 use selenia_core::signals;
 use selenia_core::waf;
 use selenia_core::crypto::tls;
+use selenia_core::crypto::sha256::sha256_digest;
 
 #[cfg(unix)]
 use selenia_core::os::{EventLoop, Interest};
@@ -302,10 +303,31 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         .next()
         .is_some();
 
-    let metadata = fs::metadata(&fs_path);
-    match metadata.and_then(|m| if m.is_file() { Ok(m.len()) } else { Err(std::io::Error::new(std::io::ErrorKind::Other,"not file")) }) {
-        Ok(total_len) => {
-            // Parse Range header (bytes) – single range only
+    let meta = match fs::metadata(&fs_path) {
+        Ok(m) if m.is_file() => m,
+        _ => {
+            metrics::inc_requests(); metrics::inc_errors();
+            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive, cfg)?;
+            log_info!("{} - \"{} {}\" 404 0", peer, method, path);
+            return Ok(());
+        }
+    };
+    let total_len = meta.len();
+    // Compute weak ETag based on size and mtime
+    let mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    let msecs = mtime.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+    let etag_raw = format!("{}:{}", total_len, msecs);
+    let etag_bytes = sha256_digest(etag_raw.as_bytes());
+    let etag_str = format!("\"{:x}{:x}{:x}{:x}\"", etag_bytes[0], etag_bytes[1], etag_bytes[2], etag_bytes[3]);
+    // Conditional If-None-Match
+    for (k,v) in headers {
+        if k.eq_ignore_ascii_case("If-None-Match") && *v == etag_str {
+            respond_simple(stream, version, 304, String::new(), keep_alive, cfg)?;
+            return Ok(());
+        }
+    }
+
+    // Parse Range header (bytes) – single range only
             let mut range: Option<(u64,u64)> = None;
             for (k,v) in headers {
                 if k.eq_ignore_ascii_case("Range") {
@@ -358,6 +380,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             } else {
                 headers_txt.push_str("Connection: close\r\n");
             }
+            headers_txt.push_str(&format!("ETag: {}\r\n", etag_str));
             headers_txt.push_str(&format!("Content-Length: {}\r\n", body.len()));
             if accept_gzip { headers_txt.push_str("Content-Encoding: gzip\r\n"); }
             headers_txt.push_str("\r\n");
@@ -367,13 +390,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             }
             log_info!("{} - \"{} {}\" {} {}", peer, method, path, status, body.len());
         }
-        Err(_) => {
-            metrics::inc_requests(); metrics::inc_errors();
-            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive, cfg)?;
-            log_info!("{} - \"{} {}\" 404 0", peer, method, path);
-        }
-    }
-    return Ok(());
+    Ok(())
 }
 
 fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool, cfg:&ServerConfig) -> std::io::Result<()> {
