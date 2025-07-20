@@ -115,9 +115,10 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                     if conn.buf.get(0) == Some(&0x16) && conn.buf.len()>=5 {
                         let rec_len = u16::from_be_bytes([conn.buf[3],conn.buf[4]]) as usize;
                         if conn.buf.len() >= 5+rec_len {
-                            // For now, always respond with dummy ServerHello and close
-                            let sh = tls::generate_server_hello();
-                            let _ = conn.stream.write_all(&sh);
+                            let handshake = &conn.buf[5..5+rec_len];
+                            if let Ok((resp, _state)) = tls::tls13::process_client_hello(handshake) {
+                                let _ = conn.stream.write_all(&resp);
+                            }
                             ev.deregister(token)?;
                             continue;
                         }
