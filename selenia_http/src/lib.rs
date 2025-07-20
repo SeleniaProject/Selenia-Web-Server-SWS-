@@ -25,6 +25,7 @@ mod http2;
 mod http3;
 mod qpack;
 mod router;
+mod rbac;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。
@@ -252,6 +253,13 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive, cfg)?;
         return Ok(());
     }
+    // RBAC check
+    let auth = headers.iter().find(|(k,_)| k.eq_ignore_ascii_case("Authorization")).map(|(_,v)| *v);
+    if !rbac::validate(path, auth) {
+        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg)?;
+        return Ok(());
+    }
+
     // Metrics endpoint high priority
     if path == "/metrics" {
         metrics::inc_requests();
