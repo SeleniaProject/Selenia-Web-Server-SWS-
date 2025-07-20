@@ -9,6 +9,7 @@ use std::time::{Instant, Duration};
 use std::fs::File;
 
 use selenia_core::{log_info, log_warn, log_error};
+use selenia_core::crypto::tls;
 
 #[cfg(unix)]
 use selenia_core::os::{EventLoop, Interest};
@@ -86,6 +87,18 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                     }
 
                     conn.last_active = Instant::now();
+
+                    // TLS detection: if first byte indicates handshake (0x16) and buf has at least 5 bytes, treat as TLS
+                    if conn.buf.get(0) == Some(&0x16) && conn.buf.len()>=5 {
+                        let rec_len = u16::from_be_bytes([conn.buf[3],conn.buf[4]]) as usize;
+                        if conn.buf.len() >= 5+rec_len {
+                            // For now, always respond with dummy ServerHello and close
+                            let sh = tls::generate_server_hello();
+                            let _ = conn.stream.write_all(&sh);
+                            ev.deregister(token)?;
+                            continue;
+                        }
+                    }
 
                     loop {
                         match conn.parser.advance(&conn.buf) {
