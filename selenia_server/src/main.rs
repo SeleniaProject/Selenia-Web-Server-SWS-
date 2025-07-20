@@ -3,10 +3,14 @@ use selenia_core::locale::register_locale;
 use selenia_core::{log_info, log_error};
 use selenia_http::run_server;
 use std::collections::HashMap;
+use std::env;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let cfg_path = if args.len()>1 { &args[1] } else { "config.yaml" };
+
     // Load configuration.
-    let cfg = match ServerConfig::load_from_yaml("config.yaml")
+    let cfg = match ServerConfig::load_from_yaml(cfg_path)
         .or_else(|_| ServerConfig::load_from_file("config.txt")) {
         Ok(c) => c,
         Err(e) => {
