@@ -42,7 +42,7 @@
 ## 4. Plugin & Sandbox
 - [x] C ABI Plugin Loader (`cdylib`)
 - [x] WASM Edge Function (WASI Snapshot)
-- [ ] Capability / seccomp 制限
+- [x] Capability / seccomp 制限
 
 ## 5. Routing / RBAC / WAF
 - [ ] Radix ツリー Router (rewrite, redirect, proxy)
