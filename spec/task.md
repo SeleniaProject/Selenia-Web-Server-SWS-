@@ -91,8 +91,8 @@
 ## 12. Documentation & Spec Compliance
 - [x] SPECIFICATION.md 完成
 - [x] DESIGN.md 完成
-- [ ] Rustdoc 100% 公開 API カバレッジ
-- [ ] man page / HTML ドキュメント自動生成
+- [x] Rustdoc 100% 公開 API カバレッジ
+- [x] man page / HTML ドキュメント自動生成
 
 ---
 

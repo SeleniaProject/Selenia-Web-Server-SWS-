@@ -19,6 +19,8 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Tests
         run: cargo test --all --release
+      - name: Docs
+        run: scripts/gen_docs.sh
       - name: Coverage
         run: |
           cargo install cargo-llvm-cov --locked
