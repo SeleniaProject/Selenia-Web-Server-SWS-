@@ -9,7 +9,7 @@
 - [x] Non-blocking EventLoop (`event_loop.rs`)
 - [x] Multi-poller auto-selection & runtime fallback
 - [x] Async DNS キャッシュ (skiplist + TTL eviction)
-- [ ] Hot-Reload マスター/ワーカープロセス制御
+- [x] Hot-Reload マスター/ワーカープロセス制御
 
 ## 2. Crypto Subsystem
 - [x] ChaCha20 (RFC8439) 実装
