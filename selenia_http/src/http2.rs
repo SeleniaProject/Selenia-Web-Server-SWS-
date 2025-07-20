@@ -3,6 +3,7 @@
 
 use std::io::{self, Write};
 use std::net::TcpStream;
+use super::hpack;
 
 const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 

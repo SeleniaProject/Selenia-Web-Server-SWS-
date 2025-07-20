@@ -377,16 +377,22 @@ fn guess_mime(path: &Path) -> &'static str {
 }
 
 fn sanitize_path(root_dir: &str, uri_path: &str) -> PathBuf {
-    let mut safe_path = uri_path.trim_start_matches('/');
-    if safe_path.is_empty() {
-        safe_path = "index.html";
+    // Remove query string and fragment
+    let mut p = uri_path.split(['?', '#']).next().unwrap_or("");
+    p = p.trim_start_matches('/');
+    if p.is_empty() { p = "index.html"; }
+
+    // Reject paths containing .. or leading with /
+    if p.contains("..") { return PathBuf::from("/invalid"); }
+
+    let full = Path::new(root_dir).join(p);
+    // Ensure resulting path stays within root_dir canonical path
+    if let (Ok(full_canon), Ok(root_canon)) = (full.canonicalize(), Path::new(root_dir).canonicalize()) {
+        if !full_canon.starts_with(&root_canon) {
+            return PathBuf::from("/invalid");
+        }
     }
-    let joined = Path::new(root_dir).join(safe_path);
-    if joined.is_dir() {
-        joined.join("index.html")
-    } else {
-        joined
-    }
+    if full.is_dir() { full.join("index.html") } else { full }
 }
 
 fn should_close(req: &parser::Request) -> bool {
