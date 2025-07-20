@@ -64,5 +64,7 @@ impl<'a> ClientHello<'a> {
 }
 
 pub mod rand;
+pub mod sha256;
+pub mod hmac;
 
 // 以降のメッセージは後続フェーズで追加予定 
