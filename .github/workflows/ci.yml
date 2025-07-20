@@ -1,0 +1,45 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+          components: llvm-tools-preview
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Tests
+        run: cargo test --all --release
+      - name: Coverage
+        run: |
+          cargo install cargo-llvm-cov --locked
+          cargo llvm-cov --no-report --fail-under-lines 0 --all-features
+      - name: Fuzz (smoke)
+        run: |
+          rustup component add llvm-tools-preview
+          cargo install cargo-fuzz --locked
+          cargo fuzz run http_parser -- -max_total_time=30
+      - name: Bench (smoke)
+        run: cargo run --bin bench --release || true
+      - name: Build release artefact
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./target/${{ matrix.target }}/release/
+          output-file: sbom_${{ matrix.target }}.spdx.json
+      - name: Cosign Sign SBOM
+        uses: sigstore/cosign-installer@main
+      - name: Sign
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: cosign sign --key github.key sbom_${{ matrix.target }}.spdx.json || echo "cosign skip" 

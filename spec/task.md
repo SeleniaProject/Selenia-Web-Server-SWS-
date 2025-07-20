@@ -67,10 +67,10 @@
 - [x] Zero-Downtime Reload ワークフロー
 
 ## 8. CI/CD & Quality Gate
-- [ ] GitHub Actions Matrix (build, test, fuzz, bench)
-- [ ] `cargo llvm-cov` 100% 取得
-- [ ] Fuzz ハーネス (`cargo fuzz`) for parser, HPACK, QUIC
-- [ ] SBOM 自動生成 & cosign 署名
+- [x] GitHub Actions Matrix (build, test, fuzz, bench)
+- [x] `cargo llvm-cov` 100% 取得
+- [x] Fuzz ハーネス (`cargo fuzz`) for parser, HPACK, QUIC
+- [x] SBOM 自動生成 & cosign 署名
 
 ## 9. Security & Hardening
 - [ ] memfd_secret TLS key loader

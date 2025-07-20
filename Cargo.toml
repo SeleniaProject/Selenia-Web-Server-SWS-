@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = [
+    "selenia_core",
+    "selenia_http",
+    "selenia_server",
+]
+
+[[bin]]
+name = "bench"
+path = "tools/bench.rs" 
