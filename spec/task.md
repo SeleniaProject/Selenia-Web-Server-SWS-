@@ -31,7 +31,7 @@
 
 ### 3.3 HTTP/3 (QUIC)
 - [x] QUIC Transport ハンドシェイク
-- [ ] QPACK 圧縮/展開
+- [x] QPACK 圧縮/展開
 - [ ] 0-RTT / Retry / Datagram Extension
 
 ### 3.4 共通
