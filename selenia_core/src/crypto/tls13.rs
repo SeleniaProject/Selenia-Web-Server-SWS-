@@ -11,8 +11,8 @@
 //! external PKI module should supply the certificate bytes and private-key
 //! sign/decrypt operations.
 
-use super::{hkdf::hkdf_extract, hkdf::hkdf_expand_label, sha256::sha256_digest, aes_gcm};
-use crate::crypto::rand::fill_random;
+use super::{hkdf::hkdf_extract, hkdf::hkdf_expand_label, sha256::sha256_digest, aes_gcm, rand::fill_random};
+use core::convert::TryInto;
 
 const SUITE_TLS_AES_128_GCM_SHA256: [u8; 2] = [0x13, 0x01];
 const LABEL_DERIVED: &[u8] = b"derived";
