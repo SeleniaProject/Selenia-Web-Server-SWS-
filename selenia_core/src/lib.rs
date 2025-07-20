@@ -7,4 +7,5 @@ pub mod metrics;
 pub mod signals;
 pub mod plugin;
 pub mod waf;
-pub mod dns; 
+pub mod dns;
+pub mod wasm; 

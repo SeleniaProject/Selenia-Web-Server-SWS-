@@ -37,11 +37,11 @@
 ### 3.4 共通
 - [x] Range / Conditional / ETag 処理
 - [x] Gzip / Deflate 圧縮
-- [ ] Brotli / Zstd 実装完了
+- [x] Brotli / Zstd 実装完了
 
 ## 4. Plugin & Sandbox
 - [x] C ABI Plugin Loader (`cdylib`)
-- [ ] WASM Edge Function (WASI Snapshot)
+- [x] WASM Edge Function (WASI Snapshot)
 - [ ] Capability / seccomp 制限
 
 ## 5. Routing / RBAC / WAF
