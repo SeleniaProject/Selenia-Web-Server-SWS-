@@ -57,8 +57,8 @@
 - [x] 構造化 JSON ロガー (`logger.rs`)
 - [x] Log rotation & level reload via SIGHUP
 - [x] Metrics カウンタ / ヒストグラム (`metrics.rs`)
-- [ ] Prometheus `/metrics` HTTP エンドポイント
-- [ ] OpenTelemetry Trace exporter (OTLP gRPC)
+- [x] Prometheus `/metrics` HTTP エンドポイント
+- [x] OpenTelemetry Trace exporter (OTLP gRPC)
 
 ## 7. Operations / CLI
 - [x] ベンチマークツール (`tools/bench.rs`)

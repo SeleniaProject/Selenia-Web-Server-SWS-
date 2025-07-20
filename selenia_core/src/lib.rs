@@ -12,3 +12,4 @@ pub mod wasm;
 pub mod seccomp;
 pub mod ebpf; 
 pub mod ratelimit; 
+pub mod otel; 
