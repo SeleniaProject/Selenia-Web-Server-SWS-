@@ -9,6 +9,7 @@ use std::time::{Instant, Duration};
 use std::fs::File;
 
 use selenia_core::{log_info, log_warn, log_error};
+use selenia_core::metrics;
 use selenia_core::crypto::tls;
 
 #[cfg(unix)]
@@ -206,6 +207,23 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive)?;
         return Ok(());
     }
+    // Metrics endpoint high priority
+    if path == "/metrics" {
+        metrics::inc_requests();
+        let body = metrics::render();
+        let mut headers = format!("{} 200 OK\r\nContent-Type: text/plain; version=0\r\nContent-Length: {}\r\n", version, body.len());
+        if keep_alive {
+            headers.push_str("Connection: keep-alive\r\n");
+            headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
+        } else {
+            headers.push_str("Connection: close\r\n");
+        }
+        headers.push_str("\r\n");
+        stream.write_all(headers.as_bytes())?;
+        stream.write_all(body.as_bytes())?;
+        return Ok(());
+    }
+
     let fs_path = sanitize_path(&cfg.root_dir, path);
     let accept_gzip = headers
         .iter()
@@ -229,9 +247,11 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
 
     match fs::read(&fs_path) {
         Ok(contents) => {
+            metrics::inc_requests();
             let body = if accept_gzip {
                 compress::encode(&contents, compress::Encoding::Gzip)
             } else { contents };
+            metrics::add_bytes(body.len() as u64);
             let mime = guess_mime(&fs_path);
             let mut headers = format!(
                 "{} 200 OK\r\nContent-Type: {}\r\n",
@@ -265,6 +285,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             }
         }
         Err(_) => {
+            metrics::inc_requests(); metrics::inc_errors();
             respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive)?;
         }
     }
