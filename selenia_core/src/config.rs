@@ -28,6 +28,7 @@ pub struct CacheConfig {
 pub enum ConfigError {
     Io(io::Error),
     InvalidFormat(String),
+    InvalidValue(String),
     MissingField(&'static str),
 }
 
@@ -199,6 +200,24 @@ impl ServerConfig {
             tls_key: None,
             cache: None,
         })
+    }
+
+    /// Validate configuration values (port ranges, paths, etc.).
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.listen.is_empty() { return Err(ConfigError::InvalidValue("listen empty".into())); }
+        for addr in &self.listen {
+            if !addr.contains(':') { return Err(ConfigError::InvalidValue(format!("invalid listen addr: {}", addr))); }
+            if let Some(port_str) = addr.rsplit_once(':').map(|(_,p)| p) {
+                let port: u16 = port_str.parse().map_err(|_| ConfigError::InvalidValue(format!("invalid port: {}", port_str)))?;
+                if port==0 { return Err(ConfigError::InvalidValue("port 0".into())); }
+            }
+        }
+        if let Some(cache)=&self.cache {
+            if cache.stale_while_revalidate>cache.max_age {
+                return Err(ConfigError::InvalidValue("stale_while_revalidate greater than max_age".into()));
+            }
+        }
+        Ok(())
     }
 }
 

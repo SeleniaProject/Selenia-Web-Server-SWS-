@@ -19,6 +19,11 @@ fn main() {
         }
     };
 
+    if let Err(e) = cfg.validate() {
+        log_error!("Config validation error: {:?}", e);
+        std::process::exit(1);
+    }
+
     // Register English locale.
     let mut en = HashMap::new();
     en.insert("http.not_found".to_string(), "404 Not Found".to_string());
