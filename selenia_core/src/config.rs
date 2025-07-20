@@ -17,6 +17,15 @@ pub struct ServerConfig {
     pub tls_cert: Option<String>,
     pub tls_key: Option<String>,
     pub cache: Option<CacheConfig>,
+    pub vhosts: Vec<VirtualHost>,
+}
+
+#[derive(Debug, Clone)]
+pub struct VirtualHost {
+    pub domain: String,
+    pub root: String,
+    pub gzip: bool,
+    pub cache: Option<CacheConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +72,7 @@ impl ServerConfig {
         let mut tls_cert: Option<String> = None;
         let mut tls_key: Option<String> = None;
         let mut cache_cfg: Option<CacheConfig> = None;
+        let mut vhosts: Vec<VirtualHost> = Vec::new();
 
         let mut in_server = false;
         let mut server_indent: Option<usize> = None;
@@ -171,6 +181,41 @@ impl ServerConfig {
                 if let (Some(ma), Some(sr)) = (max_age, swr) {
                     cache_cfg = Some(CacheConfig{max_age:ma, stale_while_revalidate:sr});
                 }
+            } else if trimmed.starts_with("virtual_hosts:") {
+                // Parse list of virtual hosts
+                let vh_indent = indent;
+                while let Some(line)=lines.next() {
+                    let ltrim = line.trim();
+                    let lindent = line.chars().take_while(|c| c.is_whitespace()).count();
+                    if lindent<=vh_indent { break; }
+                    if ltrim.starts_with('-') {
+                        // new virtual host
+                        let mut domain="".to_string();
+                        let mut root="".to_string();
+                        let mut gzip=false;
+                        let mut cache: Option<CacheConfig>=None;
+                        // iterate subsequent lines
+                        loop {
+                            let peek_opt=lines.peek();
+                            if peek_opt.is_none() { break; }
+                            let pline=*peek_opt.unwrap();
+                            let pindent=pline.chars().take_while(|c| c.is_whitespace()).count();
+                            if pindent<=lindent { break; }
+                            let ptrim=pline.trim();
+                            if let Some(v)=ptrim.strip_prefix("domain:") { domain=v.trim().trim_matches(|c| c=='"'||c=='\'').to_string(); }
+                            if let Some(v)=ptrim.strip_prefix("root:") { root=v.trim().trim_matches(|c| c=='"'||c=='\'').to_string(); }
+                            if let Some(v)=ptrim.strip_prefix("gzip:") { gzip=v.trim()=="true"; }
+                            if ptrim.starts_with("cache:") {
+                                // very simple single-line cache block for now
+                                // not implemented deeper
+                            }
+                            let _=lines.next();
+                        }
+                        if !domain.is_empty() && !root.is_empty() {
+                            vhosts.push(VirtualHost{domain,root,gzip,cache});
+                        }
+                    }
+                }
             }
         }
 
@@ -182,6 +227,7 @@ impl ServerConfig {
             tls_cert,
             tls_key,
             cache: cache_cfg,
+            vhosts,
         };
 
         // Merge included configs (fallback values)
@@ -234,6 +280,7 @@ impl ServerConfig {
             tls_cert: None,
             tls_key: None,
             cache: None,
+            vhosts: Vec::new(),
         })
     }
 

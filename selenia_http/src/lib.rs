@@ -238,7 +238,21 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         return Ok(());
     }
 
-    let fs_path = sanitize_path(&cfg.root_dir, path);
+    // Virtual host selection
+    let mut effective_root = cfg.root_dir.clone();
+    let mut effective_cache = cfg.cache.clone();
+    for (k,v) in headers {
+        if k.eq_ignore_ascii_case("Host") {
+            let host=v.split(':').next().unwrap_or(v);
+            if let Some(vh)=cfg.vhosts.iter().find(|vh| vh.domain==host) {
+                effective_root=vh.root.clone();
+                if vh.cache.is_some() { effective_cache=vh.cache.clone(); }
+            }
+            break;
+        }
+    }
+
+    let fs_path = sanitize_path(&effective_root, path);
     let accept_gzip = headers
         .iter()
         .filter(|(k, _)| k.eq_ignore_ascii_case("Accept-Encoding"))
@@ -259,45 +273,67 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         .next()
         .is_some();
 
-    match fs::read(&fs_path) {
-        Ok(contents) => {
-            metrics::inc_requests();
-            let body = if accept_gzip {
-                compress::encode(&contents, compress::Encoding::Gzip)
-            } else { contents };
-            metrics::add_bytes(body.len() as u64);
-            let mime = guess_mime(&fs_path);
-            let mut headers = format!(
-                "{} 200 OK\r\nContent-Type: {}\r\n",
-                version,
-                mime
-            );
-            if let Some(cache) = &cfg.cache {
-                headers.push_str(&format!("Cache-Control: max-age={}, stale-while-revalidate={}\r\n", cache.max_age, cache.stale_while_revalidate));
-            }
-            if keep_alive {
-                headers.push_str("Connection: keep-alive\r\n");
-                headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
-            } else {
-                headers.push_str("Connection: close\r\n");
-            }
-            headers.push_str(&format!("Content-Length: {}\r\n", body.len()));
-            if accept_gzip { headers.push_str("Content-Encoding: gzip\r\n"); }
-            headers.push_str("\r\n");
-            stream.write_all(headers.as_bytes())?;
-            if method != "HEAD" {
-                if accept_gzip {
-                    stream.write_all(&body)?;
-                } else {
-                    // Zero-copy path
-                    if let Ok(file) = File::open(&fs_path) {
-                        let _ = zerocopy::transfer(stream, &file, body.len() as u64);
-                    } else {
-                        stream.write_all(&body)?; // fallback
+    let metadata = fs::metadata(&fs_path);
+    match metadata.and_then(|m| if m.is_file() { Ok(m.len()) } else { Err(std::io::Error::new(std::io::ErrorKind::Other,"not file")) }) {
+        Ok(total_len) => {
+            // Parse Range header (bytes) – single range only
+            let mut range: Option<(u64,u64)> = None;
+            for (k,v) in headers {
+                if k.eq_ignore_ascii_case("Range") {
+                    if let Some(r) = v.strip_prefix("bytes=") {
+                        let parts: Vec<&str> = r.split('-').collect();
+                        if parts.len()==2 {
+                            let start_opt = if !parts[0].is_empty() { parts[0].parse::<u64>().ok() } else { None };
+                            let end_opt = if !parts[1].is_empty() { parts[1].parse::<u64>().ok() } else { None };
+                            if let Some(s)=start_opt {
+                                let e = end_opt.unwrap_or(total_len-1);
+                                if s<=e && e<total_len {
+                                    range = Some((s,e));
+                                }
+                            } else if let Some(e)=end_opt { // suffix range
+                                if e!=0 {
+                                    range = Some((total_len-e, total_len-1));
+                                }
+                            }
+                        }
                     }
                 }
             }
-            log_info!("{} - \"{} {}\" 200 {}", peer, method, path, body.len());
+
+            let full_body = fs::read(&fs_path)?;
+            let (body, status, content_range_hdr) = if let Some((s,e)) = range {
+                let slice = &full_body[s as usize ..= e as usize];
+                (slice.to_vec(), 206, Some(format!("bytes {}-{}/{}", s, e, total_len)))
+            } else { (full_body, 200, None) };
+
+            metrics::inc_requests();
+            metrics::add_bytes(body.len() as u64);
+
+            let mime = guess_mime(&fs_path);
+            let mut headers_txt = format!(
+                "{} {} OK\r\nContent-Type: {}\r\n",
+                version,
+                status,
+                mime
+            );
+            if let Some(cr)=content_range_hdr { headers_txt.push_str(&format!("Content-Range: {}\r\n", cr)); }
+            if let Some(cache)=&effective_cache {
+                headers_txt.push_str(&format!("Cache-Control: max-age={}, stale-while-revalidate={}\r\n", cache.max_age, cache.stale_while_revalidate));
+            }
+            if keep_alive {
+                headers_txt.push_str("Connection: keep-alive\r\n");
+                headers_txt.push_str("Keep-Alive: timeout=30, max=100\r\n");
+            } else {
+                headers_txt.push_str("Connection: close\r\n");
+            }
+            headers_txt.push_str(&format!("Content-Length: {}\r\n", body.len()));
+            if accept_gzip { headers_txt.push_str("Content-Encoding: gzip\r\n"); }
+            headers_txt.push_str("\r\n");
+            stream.write_all(headers_txt.as_bytes())?;
+            if method != "HEAD" {
+                stream.write_all(&body)?;
+            }
+            log_info!("{} - \"{} {}\" {} {}", peer, method, path, status, body.len());
         }
         Err(_) => {
             metrics::inc_requests(); metrics::inc_errors();
@@ -305,7 +341,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             log_info!("{} - \"{} {}\" 404 0", peer, method, path);
         }
     }
-    Ok(())
+    return Ok(());
 }
 
 fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool) -> std::io::Result<()> {
