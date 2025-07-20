@@ -67,5 +67,9 @@ pub mod rand;
 pub mod sha256;
 pub mod hmac;
 pub mod hkdf;
+pub mod chacha20;
+pub mod poly1305;
+pub mod aead;
+pub mod tls;
 
 // 以降のメッセージは後続フェーズで追加予定 
