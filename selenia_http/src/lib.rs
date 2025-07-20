@@ -68,7 +68,8 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     loop {
         if signals::should_terminate() { break; }
         if signals::take_reload_request() {
-            log_info!("Reload requested (SIGHUP) – future implementation to apply new config");
+            log_info!("Reload requested (SIGHUP) – rotating log");
+            selenia_core::logger::rotate("sws.log");
         }
         // 1000ms タイムアウトでポーリング
         let events = ev.poll(1000)?;

@@ -55,7 +55,7 @@
 
 ## 6. Observability
 - [x] 構造化 JSON ロガー (`logger.rs`)
-- [ ] Log rotation & level reload via SIGHUP
+- [x] Log rotation & level reload via SIGHUP
 - [x] Metrics カウンタ / ヒストグラム (`metrics.rs`)
 - [ ] Prometheus `/metrics` HTTP エンドポイント
 - [ ] OpenTelemetry Trace exporter (OTLP gRPC)

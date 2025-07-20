@@ -2,6 +2,8 @@ use std::fmt;
 use std::io::{self, Write};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::fs::{OpenOptions, File};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Severity level for a log entry.
 #[derive(Clone, Copy, Debug)]
@@ -29,20 +31,35 @@ impl fmt::Display for LogLevel {
 /// Global stderr logger lock to avoid interleaved output from multiple threads.
 static LOGGER_LOCK: Mutex<()> = Mutex::new(());
 
-/// Write a log line with the given level and formatted message.
+static mut FILE: Option<Mutex<File>> = None;
+static LOG_LEVEL: AtomicUsize = AtomicUsize::new(LogLevel::Info as usize);
+
+pub fn init_file(path:&str) {
+    let f = OpenOptions::new().create(true).append(true).open(path).unwrap();
+    unsafe { FILE = Some(Mutex::new(f)); }
+}
+
+pub fn set_level(level: LogLevel) { LOG_LEVEL.store(level as usize, Ordering::Relaxed); }
+
+pub fn rotate(path:&str) {
+    use std::fs;
+    // close current and rename
+    unsafe if let Some(m) = &FILE { let _ = m.lock().unwrap(); } // drop after scope
+    let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    let rotated = format!("{}.{}", path, ts);
+    let _ = fs::rename(path, &rotated);
+    init_file(path);
+}
+
 pub fn log(level: LogLevel, args: fmt::Arguments<'_>) {
-    // Acquire mutex to serialize writes.
+    if level as usize < LOG_LEVEL.load(Ordering::Relaxed) { return; }
     let _guard = LOGGER_LOCK.lock().unwrap();
-    // Compute unix millis timestamp.
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let millis = ts.as_secs() * 1000 + (ts.subsec_millis() as u64);
-
-    // Thread id (platform independent as u64 via Debug formatting).
+    let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let millis = ts.as_secs()*1000 + ts.subsec_millis() as u64;
     let tid = std::thread::current().id();
-
-    let _ = writeln!(io::stderr(), "[{}] [{}] {:?}: {}", millis, level, tid, args);
+    let line = format!("[{millis}] [{level}] {:?}: {}\n", tid, args);
+    let _ = io::stderr().write_all(line.as_bytes());
+    unsafe { if let Some(f) = &FILE { let _ = f.lock().unwrap().write_all(line.as_bytes()); } }
 }
 
 // ------------- Convenience macros -------------
