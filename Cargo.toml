@@ -8,4 +8,8 @@ members = [
 
 [[bin]]
 name = "bench"
-path = "tools/bench.rs" 
+path = "tools/bench.rs"
+
+[[bin]]
+name = "bench_scenarios"
+path = "tools/bench_scenarios.rs" 

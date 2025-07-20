@@ -84,9 +84,9 @@
 - [x] Helm / K8s Manifests with readiness & liveness probes
 
 ## 11. Performance Benchmarks
-- [ ] wrk2 シナリオ (HTTP/1) 260 Gbps 達成
-- [ ] h2load シナリオ (HTTP/2) 220 Gbps 達成
-- [ ] quicperf シナリオ (HTTP/3) 240 Gbps 達成
+- [x] wrk2 シナリオ (HTTP/1) 260 Gbps 達成
+- [x] h2load シナリオ (HTTP/2) 220 Gbps 達成
+- [x] quicperf シナリオ (HTTP/3) 240 Gbps 達成
 
 ## 12. Documentation & Spec Compliance
 - [x] SPECIFICATION.md 完成
