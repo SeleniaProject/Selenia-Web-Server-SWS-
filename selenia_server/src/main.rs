@@ -6,10 +6,11 @@ use std::collections::HashMap;
 
 fn main() {
     // Load configuration.
-    let cfg = match ServerConfig::load_from_file("config.txt") {
+    let cfg = match ServerConfig::load_from_yaml("config.yaml")
+        .or_else(|_| ServerConfig::load_from_file("config.txt")) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[ERROR] Config load failure: {:?}", e);
+            log_error!("Config load failure: {:?}", e);
             std::process::exit(1);
         }
     };
