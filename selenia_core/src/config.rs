@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::path::PathBuf;
 use std::io::ErrorKind;
 use std::env;
 
@@ -66,12 +67,35 @@ impl ServerConfig {
         let mut in_server = false;
         let mut server_indent: Option<usize> = None;
 
+        let mut includes: Vec<PathBuf> = Vec::new();
+
         let mut lines = content.lines().peekable();
         while let Some(line_raw) = lines.next() {
             let trimmed = line_raw.trim();
             if trimmed.is_empty() || trimmed.starts_with('#') { continue; }
 
             let indent = line_raw.chars().take_while(|c| c.is_whitespace()).count();
+
+            // Root-level include processing (indent==0)
+            if indent==0 && trimmed.starts_with("include:") {
+                // expect subsequent '-' lines
+                while let Some(peek) = lines.peek() {
+                    let p_indent = peek.chars().take_while(|c| c.is_whitespace()).count();
+                    if p_indent>0 { break; }
+                    if let Some(path) = peek.trim().strip_prefix("include:") {
+                        let p = path.trim().trim_matches(|c| c=='"' || c=='\'');
+                        includes.push(PathBuf::from(p));
+                        let _ = lines.next();
+                        continue;
+                    }
+                    if let Some(p) = peek.trim().strip_prefix('-') {
+                        let v = p.trim().trim_matches(|c| c=='"' || c=='\'');
+                        includes.push(PathBuf::from(v));
+                    } else { break; }
+                    let _ = lines.next();
+                }
+                continue;
+            }
 
             if !in_server {
                 if trimmed.starts_with("server:") {
@@ -151,14 +175,25 @@ impl ServerConfig {
         }
 
         let listen = listen.into_iter().map(|v| expand_env(&v)).collect();
-        Ok(ServerConfig {
+        let mut cfg = ServerConfig {
             listen,
             root_dir: root_dir.ok_or(ConfigError::MissingField("root_dir"))?,
             locale: locale.ok_or(ConfigError::MissingField("locale"))?,
             tls_cert,
             tls_key,
             cache: cache_cfg,
-        })
+        };
+
+        // Merge included configs (fallback values)
+        for inc in includes {
+            if let Ok(sub) = ServerConfig::load_from_yaml(&inc) {
+                if cfg.listen.is_empty() { cfg.listen = sub.listen; }
+                if cfg.tls_cert.is_none() { cfg.tls_cert = sub.tls_cert; }
+                if cfg.tls_key.is_none() { cfg.tls_key = sub.tls_key; }
+                if cfg.cache.is_none() { cfg.cache = sub.cache; }
+            }
+        }
+        Ok(cfg)
     }
 
     /// Legacy key=value loader (host,port,root_dir,locale). Returns single-address listen vector.
