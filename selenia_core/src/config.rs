@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::io::ErrorKind;
+use std::env;
 
 /// Runtime configuration loaded from YAML or simple key=value file. Fields are minimal and will
 /// grow as project evolves.
@@ -94,12 +95,12 @@ impl ServerConfig {
             } else if trimmed.starts_with("root_dir:") || trimmed.starts_with("root:") {
                 if let Some(v) = trimmed.splitn(2, ':').nth(1) {
                     let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
-                    root_dir = Some(val.to_string());
+                    root_dir = Some(expand_env(val));
                 }
             } else if trimmed.starts_with("locale:") {
                 if let Some(v) = trimmed.splitn(2, ':').nth(1) {
                     let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
-                    locale = Some(val.to_string());
+                    locale = Some(expand_env(val));
                 }
             } else if trimmed.starts_with("tls:") {
                 // Parse nested tls block
@@ -110,17 +111,18 @@ impl ServerConfig {
                     if p_indent<=tls_indent { break; }
                     if let Some(v) = p_trim.strip_prefix("cert:") {
                         let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
-                        tls_cert = Some(val.to_string());
+                        tls_cert = Some(expand_env(val));
                     }
                     if let Some(v) = p_trim.strip_prefix("key:") {
                         let val = v.trim().trim_matches(|c| c=='"' || c=='\'');
-                        tls_key = Some(val.to_string());
+                        tls_key = Some(expand_env(val));
                     }
                     let _ = lines.next();
                 }
             }
         }
 
+        let listen = listen.into_iter().map(|v| expand_env(&v)).collect();
         Ok(ServerConfig {
             listen,
             root_dir: root_dir.ok_or(ConfigError::MissingField("root_dir"))?,
@@ -153,8 +155,8 @@ impl ServerConfig {
             match key {
                 "host" => host = Some(val.to_string()),
                 "port" => port = Some(val.parse::<u16>().map_err(|_| ConfigError::InvalidFormat(line.to_string()))?),
-                "root_dir" => root_dir = Some(val.to_string()),
-                "locale" => locale = Some(val.to_string()),
+                "root_dir" => root_dir = Some(expand_env(val)),
+                "locale" => locale = Some(expand_env(val)),
                 _ => return Err(ConfigError::InvalidFormat(line.to_string())),
             }
         }
@@ -162,11 +164,38 @@ impl ServerConfig {
         let h = host.ok_or(ConfigError::MissingField("host"))?;
         let p = port.ok_or(ConfigError::MissingField("port"))?;
         Ok(ServerConfig {
-            listen: vec![format!("{}:{}", h,p)],
+            listen: vec![expand_env(&format!("{}:{}", h,p))],
             root_dir: root_dir.ok_or(ConfigError::MissingField("root_dir"))?,
             locale: locale.ok_or(ConfigError::MissingField("locale"))?,
             tls_cert: None,
             tls_key: None,
         })
     }
+}
+
+/// Replace occurrences of `${VAR}` in `input` with the value of environment variable `VAR`.
+/// Unknown variables are left unchanged. No external crate is used.
+fn expand_env(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = String::with_capacity(input.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+            // Find closing brace
+            if let Some(rel_end) = bytes[i+2..].iter().position(|&b| b == b'}') {
+                let end = i + 2 + rel_end;
+                let var_name = &input[i + 2..end];
+                if let Ok(val) = env::var(var_name) {
+                    out.push_str(&val);
+                } else {
+                    out.push_str(&format!("${{{}}}", var_name));
+                }
+                i = end + 1;
+                continue;
+            }
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
 } 
