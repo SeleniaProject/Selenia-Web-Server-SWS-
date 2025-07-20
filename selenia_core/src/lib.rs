@@ -6,4 +6,5 @@ pub mod logger;
 pub mod metrics;
 pub mod signals;
 pub mod plugin;
-pub mod waf; 
+pub mod waf;
+pub mod dns; 

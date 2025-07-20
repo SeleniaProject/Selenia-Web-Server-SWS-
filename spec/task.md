@@ -8,7 +8,7 @@
 - [x] Poller 抽象トレイト実装 (`epoll`, `kqueue`, `IOCP`, `Stub`)
 - [x] Non-blocking EventLoop (`event_loop.rs`)
 - [x] Multi-poller auto-selection & runtime fallback
-- [ ] Async DNS キャッシュ (skiplist + TTL eviction)
+- [x] Async DNS キャッシュ (skiplist + TTL eviction)
 - [ ] Hot-Reload マスター/ワーカープロセス制御
 
 ## 2. Crypto Subsystem
