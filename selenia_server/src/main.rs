@@ -85,7 +85,19 @@ fn main() {
                     }}
             }
             println!("reload not supported"); return; },
-            "benchmark" => { let _=Command::new(env::current_exe().unwrap()).arg("bench").status(); return; },
+            "benchmark" => {
+                let tools_bin = std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|d| d.join("tools/bench_scenarios")))
+                    .filter(|p| p.exists());
+                if let Some(bin) = tools_bin {
+                    let url = args_iter.next().unwrap_or_else(|| "http://127.0.0.1/".into());
+                    let _ = Command::new(bin).args(["wrk2", &url]).status();
+                } else {
+                    eprintln!("bench_scenarios tool not found");
+                }
+                return;
+            },
             "plugin" => {
                 if let Some(action) = args_iter.next() {
                     match action.as_str() {
