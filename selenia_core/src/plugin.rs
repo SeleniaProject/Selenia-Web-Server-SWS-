@@ -17,6 +17,17 @@ fn plugins() -> &'static RwLock<HashMap<String, PluginHandle>> {
 
 pub type PluginInit = unsafe extern "C" fn();
 
+#[repr(C)]
+pub struct SwsPluginV1 {
+    pub name: *const i8,
+    pub version: u32,
+    pub on_load: PluginInit,
+    pub on_request: *const c_void, // not used yet
+    pub on_unload: PluginInit,
+}
+
+const ABI_VERSION: u32 = 1;
+
 struct PluginHandle {
     name: String,
     lib: *mut c_void,
@@ -44,18 +55,38 @@ pub fn load_plugin<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
             #[cfg(windows)] { LoadLibraryA(cname.as_ptr()) as _ }
         };
         if handle.is_null() { return Err(std::io::Error::new(std::io::ErrorKind::Other, "dlopen failed")); }
-        let init_sym = CString::new("sws_plugin_init").unwrap();
-        let init_ptr = {
-            #[cfg(unix)] { dlsym(handle, init_sym.as_ptr()) }
-            #[cfg(windows)] { GetProcAddress(handle as _, init_sym.as_ptr()) as _ }
+        // Prefer new ABI symbol first.
+        let entry_sym = CString::new("sws_plugin_entry_v1").unwrap();
+        let entry_ptr = {
+            #[cfg(unix)] { dlsym(handle, entry_sym.as_ptr()) }
+            #[cfg(windows)] { GetProcAddress(handle as _, entry_sym.as_ptr()) as _ }
         };
-        if init_ptr.is_null() {
-            #[cfg(unix)] { dlclose(handle); }
-            #[cfg(windows)] { FreeLibrary(handle as _); }
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "symbol not found"));
-        }
-        let init: PluginInit = std::mem::transmute(init_ptr);
-        init(); // call plugin init
+
+        let init_ptr = if !entry_ptr.is_null() {
+            let entry:&SwsPluginV1 = &*(entry_ptr as *const SwsPluginV1);
+            if entry.version != ABI_VERSION { dlclose(handle); return Err(std::io::Error::new(std::io::ErrorKind::Other, "ABI version mismatch")); }
+            (entry.on_load)();
+            entry.on_unload as *const c_void
+        } else {
+            // Fallback to legacy symbol.
+            let init_sym = CString::new("sws_plugin_init").unwrap();
+            let p = {
+                #[cfg(unix)] { dlsym(handle, init_sym.as_ptr()) }
+                #[cfg(windows)] { GetProcAddress(handle as _, init_sym.as_ptr()) as _ }
+            };
+            if p.is_null() {
+                #[cfg(unix)] { dlclose(handle); }
+                #[cfg(windows)] { FreeLibrary(handle as _); }
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "required symbol missing"));
+            }
+            let init: PluginInit = std::mem::transmute(p);
+            init();
+            p
+        };
+
+        let _ = init_ptr; // suppress warning for now
+
+        // Store handle without keeping function pointer.
         plugins().write().unwrap().insert(path.as_ref().to_string_lossy().into_owned(), PluginHandle{name:path.as_ref().to_string_lossy().into_owned(), lib:handle, init});
     }
     Ok(())

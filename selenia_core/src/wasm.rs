@@ -28,7 +28,7 @@ pub enum WasmError { InvalidModule, NoStart, FuelExhausted, Trap }
 pub struct WasmInstance {
     code: Vec<u8>,
     start_offset: usize,
-    memory: Vec<u8>, // 64 KiB linear memory
+    memory: Vec<u8>, // 256 KiB linear memory
 }
 
 impl WasmInstance {
@@ -80,7 +80,7 @@ impl WasmInstance {
             idx+=size as usize;
         }
         let start_offset = func_body_off.ok_or(WasmError::NoStart)?;
-        Ok(Self { code: buf.to_vec(), start_offset, memory: vec![0; 64*1024] })
+        Ok(Self { code: buf.to_vec(), start_offset, memory: vec![0; 256*1024] })
     }
 
     pub fn execute(&mut self, fuel: u32) -> Result<(), WasmError> {
@@ -100,6 +100,10 @@ impl WasmInstance {
                     let b=stack.pop().ok_or(WasmError::Trap)?;
                     let a=stack.pop().ok_or(WasmError::Trap)?;
                     stack.push(a.wrapping_add(b)); pc+=1;
+                }
+                0x10 => { // call index
+                    let (idx,n)=leb_u32(&self.code[pc+1..]); pc+=1+n;
+                    if idx==0 { /* stub fd_write */ pc+=0; continue; } else { return Err(WasmError::Trap); }
                 }
                 0x0b => break, // end
                 _ => return Err(WasmError::Trap),
