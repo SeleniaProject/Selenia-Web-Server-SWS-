@@ -57,11 +57,11 @@
 - [x] Capability および seccomp 制限統合
 
 ### 6. 観測性
-- [ ] 構造化 JSON ロガー (動的レベルリロード対応)
-- [ ] Prometheus `/metrics` エクスポータ
-- [ ] ヒストグラム / サマリーメトリクス
-- [ ] OpenTelemetry Trace エクスポータ (OTLP gRPC)
-- [ ] `traceparent` 自動伝播
+- [x] 構造化 JSON ロガー (動的レベルリロード対応)
+- [x] Prometheus `/metrics` エクスポータ
+- [x] ヒストグラム / サマリーメトリクス
+- [x] OpenTelemetry Trace エクスポータ (OTLP gRPC)
+- [x] `traceparent` 自動伝播
 
 ### 7. CLI & プロセスモデル
 - [ ] `start|stop|reload|benchmark|plugin|locale` 各サブコマンド実装
