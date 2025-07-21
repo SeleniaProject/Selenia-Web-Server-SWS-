@@ -274,23 +274,40 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
 }
 
 fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &str, headers: &[(&str,&str)], cfg: &ServerConfig, locale: &str, keep_alive: bool, peer: &str) -> std::io::Result<()> {
+    let start_sys = std::time::SystemTime::now();
+    // original start Instant for latency below
     let start = std::time::Instant::now();
     if !waf::evaluate(method, path, &headers.iter().map(|(a,b)|(a.to_string(),b.to_string())).collect::<Vec<_>>()) {
         respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg)?;
-        selenia_core::metrics::observe_latency(start.elapsed());
+        let latency = start.elapsed();
+        selenia_core::metrics::observe_latency(latency);
+        let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let span_name = format!("{} {}", method, path);
+        selenia_core::otel::export_span(&span_name, start_ns, end_ns);
         return Ok(());
     }
 
     if method != "GET" && method != "HEAD" {
         respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive, cfg)?;
-        selenia_core::metrics::observe_latency(start.elapsed());
+        let latency = start.elapsed();
+        selenia_core::metrics::observe_latency(latency);
+        let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let span_name = format!("{} {}", method, path);
+        selenia_core::otel::export_span(&span_name, start_ns, end_ns);
         return Ok(());
     }
     // RBAC check
     let auth = headers.iter().find(|(k,_)| k.eq_ignore_ascii_case("Authorization")).map(|(_,v)| *v);
     if !rbac::validate(path, auth) {
         respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg)?;
-        selenia_core::metrics::observe_latency(start.elapsed());
+        let latency = start.elapsed();
+        selenia_core::metrics::observe_latency(latency);
+        let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let span_name = format!("{} {}", method, path);
+        selenia_core::otel::export_span(&span_name, start_ns, end_ns);
         return Ok(());
     }
 
@@ -308,7 +325,12 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         headers.push_str("\r\n");
         stream.write_all(headers.as_bytes())?;
         stream.write_all(body.as_bytes())?;
-        selenia_core::metrics::observe_latency(start.elapsed());
+        let latency = start.elapsed();
+        selenia_core::metrics::observe_latency(latency);
+        let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+        let span_name = format!("{} {}", method, path);
+        selenia_core::otel::export_span(&span_name, start_ns, end_ns);
         return Ok(());
     }
 
@@ -353,7 +375,12 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             metrics::inc_requests(); metrics::inc_errors();
             respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive, cfg)?;
             log_info!("{} - \"{} {}\" 404 0", peer, method, path);
-            selenia_core::metrics::observe_latency(start.elapsed());
+            let latency = start.elapsed();
+            selenia_core::metrics::observe_latency(latency);
+            let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+            let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+            let span_name = format!("{} {}", method, path);
+            selenia_core::otel::export_span(&span_name, start_ns, end_ns);
             return Ok(());
         }
     };
@@ -368,7 +395,12 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
     for (k,v) in headers {
         if k.eq_ignore_ascii_case("If-None-Match") && *v == etag_str {
             respond_simple(stream, version, 304, String::new(), keep_alive, cfg)?;
-            selenia_core::metrics::observe_latency(start.elapsed());
+            let latency = start.elapsed();
+            selenia_core::metrics::observe_latency(latency);
+            let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+            let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+            let span_name = format!("{} {}", method, path);
+            selenia_core::otel::export_span(&span_name, start_ns, end_ns);
             return Ok(());
         }
     }
@@ -437,7 +469,13 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             log_info!("{} - \"{} {}\" {} {}", peer, method, path, status, body.len());
         // Response finished
         
-    selenia_core::metrics::observe_latency(start.elapsed());
+    let latency = start.elapsed();
+    selenia_core::metrics::observe_latency(latency);
+    // Export OTel span
+    let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+    let start_ns = start_sys.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
+    let span_name = format!("{} {}", method, path);
+    selenia_core::otel::export_span(&span_name, start_ns, end_ns);
     Ok(())
 }
 

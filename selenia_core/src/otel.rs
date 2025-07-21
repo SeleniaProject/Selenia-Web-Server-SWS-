@@ -7,6 +7,11 @@ use std::io::{Write, Read};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::logger::{log, LogLevel};
 
+/// Current time in unix‐epoch nanoseconds.
+fn now_ns() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos() as u64
+}
+
 pub fn export_span(name:&str, start: u64, end: u64) {
     // Build minimal protobuf bytes for ResourceSpans -> ScopeSpans -> Span.
     // Hard-coded field numbers per OTLP proto.
