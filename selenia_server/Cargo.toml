@@ -1,0 +1,9 @@
+[package]
+name = "selenia_server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+selenia_core = { path = "../selenia_core" }
+selenia_http = { path = "../selenia_http" } 

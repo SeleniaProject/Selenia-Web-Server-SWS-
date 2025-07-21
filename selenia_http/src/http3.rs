@@ -13,6 +13,7 @@
 //! • Keep interface symmetric with the TLS helpers used by HTTP/1 & /2 code
 
 use std::collections::{HashMap, VecDeque};
+use super::qpack::{Encoder as QpackEncoder, Decoder as QpackDecoder};
 
 /// Draft/Version negotiated by this implementation (0x00000001 = QUIC v1)
 const QUIC_VERSION: u32 = 0x0000_0001;
@@ -190,4 +191,23 @@ impl Scheduler {
         }
         None
     }
+} 
+
+#[derive(Default)]
+pub struct ConnectionCtx {
+    pub scheduler: Scheduler,
+    pub flow: FlowMgr,
+    qenc: QpackEncoder,
+    qdec: QpackDecoder,
+}
+
+impl ConnectionCtx {
+    pub fn new() -> Self { Self { scheduler: Scheduler::default(), flow: FlowMgr::new(), qenc: QpackEncoder, qdec: QpackDecoder } }
+
+    /// Encode headers into HTTP/3 HEADERS frame (type 0x1) returning payload.
+    pub fn encode_headers(&mut self, headers:&[(String,String)]) -> Vec<u8> {
+        self.qenc.encode(headers)
+    }
+
+    pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> { self.qdec.decode(payload) }
 } 

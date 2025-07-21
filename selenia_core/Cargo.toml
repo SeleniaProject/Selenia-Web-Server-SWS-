@@ -1,0 +1,9 @@
+[package]
+name = "selenia_core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+libc = { path = "../libc" }
+# 外部 crates are forbidden; this internal crate provides only the minimal ABI definitions we need. 
