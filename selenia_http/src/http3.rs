@@ -14,6 +14,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use super::qpack::{Encoder as QpackEncoder, Decoder as QpackDecoder};
+use crate::http3_packet; // for Retry construction
 
 /// Draft/Version negotiated by this implementation (0x00000001 = QUIC v1)
 const QUIC_VERSION: u32 = 0x0000_0001;
@@ -70,31 +71,14 @@ pub fn is_zero_rtt(buf: &[u8]) -> bool {
 }
 
 // ---------------- Retry Packet --------------------
-/// Build a Retry packet with a stateless token. Caller must supply a randomly generated
-/// SCID for the server.
+/// Build a standards-compliant Retry packet using helper in `http3_packet`.
 pub fn build_retry(initial: &[u8], server_scid: &[u8], token: &[u8]) -> Option<Vec<u8>> {
     if !is_initial(initial) { return None; }
-    // Parse client DCID/SCID like in VN builder
-    if initial.len()<6 {return None;}
-    let dcid_len=initial[5] as usize; let dcid=&initial[6..6+dcid_len];
-    let scid_len_pos=6+dcid_len; if initial.len()<scid_len_pos+1 {return None;}
-    let scid_len=initial[scid_len_pos] as usize;
-    let client_scid=&initial[scid_len_pos+1 .. scid_len_pos+1+scid_len];
-
-    // Fixed bit, type=3 (Retry)
-    let first_byte = 0b1110_0000; // long header, type=3
-    let mut out = Vec::with_capacity(1+4+1+server_scid.len()+1+dcid.len()+token.len()+16); // +16 for integrity tag (omitted)
-    out.push(first_byte);
-    out.extend_from_slice(&QUIC_VERSION.to_be_bytes());
-    out.push(server_scid.len() as u8);
-    out.extend_from_slice(server_scid);
-    out.push(dcid.len() as u8);
-    out.extend_from_slice(dcid);
-    out.extend_from_slice(token);
-    // NOTE: Real implementation must append Retry Integrity Tag (RFC 9001 §5.8).
-    // We append zeros to keep length correct.
-    out.extend_from_slice(&[0u8;16]);
-    Some(out)
+    // Extract client DCID (original DCID) from Initial packet (after len byte)
+    let dcid_len = initial.get(5).copied()? as usize;
+    if initial.len() < 6 + dcid_len { return None; }
+    let orig_dcid = &initial[6 .. 6+dcid_len];
+    Some(http3_packet::build_retry(orig_dcid, server_scid, token))
 }
 
 // ---------------- Datagram Extension ---------------
@@ -194,15 +178,39 @@ impl Scheduler {
 } 
 
 #[derive(Default)]
+pub struct ZeroRttBuffer {
+    /// Buffered 0-RTT QUIC packets. Each entry is the raw packet bytes as received.
+    packets: VecDeque<Vec<u8>>,
+}
+
+impl ZeroRttBuffer {
+    /// Push a new 0-RTT packet into the buffer.
+    pub fn push(&mut self, pkt: &[u8]) {
+        // Copy the packet so that the lifetime is detached from the original receive buffer.
+        self.packets.push_back(pkt.to_vec());
+    }
+
+    /// Drain all buffered packets and return them as a vector in arrival order.
+    pub fn drain(&mut self) -> Vec<Vec<u8>> {
+        self.packets.drain(..).collect()
+    }
+
+    /// Returns true if at least one packet is buffered.
+    pub fn is_empty(&self) -> bool { self.packets.is_empty() }
+}
+
+#[derive(Default)]
 pub struct ConnectionCtx {
     pub scheduler: Scheduler,
     pub flow: FlowMgr,
     qenc: QpackEncoder,
     qdec: QpackDecoder,
+    /// Buffer for received 0-RTT Protected packets until the handshake completes.
+    zero_rtt: ZeroRttBuffer,
 }
 
 impl ConnectionCtx {
-    pub fn new() -> Self { Self { scheduler: Scheduler::default(), flow: FlowMgr::new(), qenc: QpackEncoder, qdec: QpackDecoder } }
+    pub fn new() -> Self { Self { scheduler: Scheduler::default(), flow: FlowMgr::new(), qenc: QpackEncoder, qdec: QpackDecoder, zero_rtt: ZeroRttBuffer::default() } }
 
     /// Encode headers into HTTP/3 HEADERS frame (type 0x1) returning payload.
     pub fn encode_headers(&mut self, headers:&[(String,String)]) -> Vec<u8> {
@@ -210,6 +218,26 @@ impl ConnectionCtx {
     }
 
     pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> { self.qdec.decode(payload) }
+
+    // ---------------- 0-RTT helpers ----------------
+
+    /// Offer a raw QUIC packet to the connection. If it is a 0-RTT Protected packet, the
+    /// packet is buffered and the function returns `true`. Otherwise `false` is returned so
+    /// the caller can continue normal processing.
+    pub fn maybe_buffer_0rtt(&mut self, packet:&[u8]) -> bool {
+        if is_zero_rtt(packet) {
+            self.zero_rtt.push(packet);
+            return true;
+        }
+        false
+    }
+
+    /// Flushes all buffered 0-RTT packets, returning them in arrival order. This should be
+    /// called immediately after the handshake is confirmed (TLS Finished processed) so that
+    /// the application can re-inject the packets into the normal processing pipeline.
+    pub fn flush_0rtt(&mut self) -> Vec<Vec<u8>> {
+        self.zero_rtt.drain()
+    }
 } 
 
 mod http3_packet;

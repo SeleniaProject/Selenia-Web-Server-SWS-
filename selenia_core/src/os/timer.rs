@@ -24,7 +24,7 @@ impl Timer {
     }
 
     /// Blocks the current thread until the timer expires.
-    pub fn wait(&self) -> Result<()> {
+    pub fn wait(&mut self) -> Result<()> {
         self.0.wait()
     }
 }
@@ -79,7 +79,7 @@ mod sys {
             Ok(Self { fd: file, periodic })
         }
 
-        pub fn wait(&self) -> Result<()> {
+        pub fn wait(&mut self) -> Result<()> {
             let mut buf = [0u8; 8];
             // Reading clears the expirations counter.
             self.fd.read_exact(&mut buf)?;
@@ -128,7 +128,7 @@ mod sys {
             Ok(Self { kq, ident })
         }
 
-        pub fn wait(&self) -> Result<()> {
+        pub fn wait(&mut self) -> Result<()> {
             let mut kev: libc::kevent = unsafe { mem::zeroed() };
             let res = unsafe { libc::kevent(self.kq, std::ptr::null(), 0, &mut kev, 1, std::ptr::null()) };
             if res < 0 {
@@ -205,7 +205,7 @@ mod sys {
             }
         }
 
-        pub fn wait(&self) -> Result<()> {
+        pub fn wait(&mut self) -> Result<()> {
             const INFINITE: DWORD = 0xFFFFFFFF;
             let res = unsafe { WaitForSingleObject(self.handle, INFINITE) };
             if res != WAIT_OBJECT_0 {

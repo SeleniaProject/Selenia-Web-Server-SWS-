@@ -8,6 +8,7 @@ pub type size_t = usize;
 pub type c_char = i8;
 pub type c_uint = u32;
 pub type c_int = i32;
+pub type c_long = i64;
 
 // ---------- Linux epoll ----------
 #[cfg(target_os = "linux")]
@@ -86,9 +87,6 @@ extern "C" {
 pub const RTLD_NOW: c_int = 2; 
 
 // ------------- syscall, memfd_secret, signals (Linux) -------------
-#[cfg(target_os = "linux")]
-pub type c_long = i64;
-
 #[cfg(target_os = "linux")]
 pub const SYS_memfd_secret: c_long = 447;
 #[cfg(target_os = "linux")]
@@ -174,4 +172,72 @@ extern "C" {
 #[cfg(target_os = "linux")]
 extern "C" {
     pub fn sendfile(out_fd: c_int, in_fd: c_int, offset: *mut off_t, count: size_t) -> ssize_t;
+} 
+
+// ---------------- Additional Linux CPU affinity & timer APIs ----------------
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct cpu_set_t {
+    pub bits: [u64; 16], // Support up to 1024 CPUs which is more than enough for tests.
+}
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    pub fn sched_setaffinity(pid: c_int, cpusetsize: size_t, mask: *const cpu_set_t) -> c_int;
+}
+
+// Minimal inline equivalents of the glibc CPU_{ZERO,SET} macros so that the compiler resolves
+// the symbols referenced from `event_loop_mt.rs`. They operate on our simplified `cpu_set_t`.
+#[cfg(target_os = "linux")]
+#[inline]
+pub unsafe fn CPU_ZERO(set: *mut cpu_set_t) {
+    (*set).bits = [0u64; 16];
+}
+
+#[cfg(target_os = "linux")]
+#[inline]
+pub unsafe fn CPU_SET(cpu: usize, set: *mut cpu_set_t) {
+    let idx = cpu / 64;
+    let pos = cpu % 64;
+    if idx < 16 {
+        (*set).bits[idx] |= 1u64 << pos;
+    }
+}
+
+// sysconf & constants (only what we need)
+#[cfg(target_os = "linux")]
+pub const _SC_NPROCESSORS_ONLN: c_int = 84;
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    pub fn sysconf(name: c_int) -> c_long;
+}
+
+// timerfd -----------------------------------------------------------
+#[cfg(target_os = "linux")]
+#[repr(C)]
+pub struct timespec {
+    pub tv_sec: i64,
+    pub tv_nsec: i64,
+}
+
+#[cfg(target_os = "linux")]
+#[repr(C)]
+pub struct itimerspec {
+    pub it_interval: timespec,
+    pub it_value: timespec,
+}
+
+#[cfg(target_os = "linux")]
+pub const CLOCK_MONOTONIC: c_int = 1;
+
+#[cfg(target_os = "linux")]
+pub const TFD_CLOEXEC: c_int = 0o2000000; // O_CLOEXEC, usually 0o2000000
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    pub fn timerfd_create(clockid: c_int, flags: c_int) -> c_int;
+    pub fn timerfd_settime(fd: c_int, flags: c_int, new_value: *const itimerspec, old_value: *mut itimerspec) -> c_int;
 } 

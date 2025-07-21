@@ -32,7 +32,7 @@
 - [x] QUIC Transport ハンドシェイク & パケット化
 - [x] ストリームスケジューラ & フロー制御
 - [x] QPACK エンコーダ / デコーダ統合
-- [ ] 0-RTT / Retry / Datagram Extension 対応
+- [x] 0-RTT / Retry / Datagram Extension 対応
 
 ## 3. TLS / Crypto
 - [ ] TLS 1.3 ハンドシェイクステートマシン
