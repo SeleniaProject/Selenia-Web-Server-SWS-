@@ -41,7 +41,7 @@
 - [x] OCSP Stapling 自動化
 
 ## 4. ルーティング / セキュリティ
-- [ ] Radix ツリー Router (rewrite, ワイルドカード対応)
+- [x] Radix ツリー Router (rewrite, ワイルドカード対応)
 - [ ] JWT ベース RBAC ミドルウェア
 - [ ] WAF ルールエンジン実装
 - [ ] eBPF インラインルール評価器
