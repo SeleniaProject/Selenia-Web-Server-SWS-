@@ -44,6 +44,64 @@ impl Kqueue {
         Ok(())
     }
 
+    /// Update the interest set of an already registered file descriptor.
+    ///
+    /// kqueue treats successive EV_ADD operations as an update, therefore we
+    /// can safely re-issue EV_ADD with the new readability / writability set.
+    /// Internally we build the same change list as `add` but use `EV_ADD | EV_ENABLE`
+    /// to guarantee the filter is active even when it already exists. This keeps the
+    /// implementation simple while avoiding an extra syscall when only toggling one
+    /// direction.
+    pub fn modify(&self, fd: RawFd, token: Token, readable: bool, writable: bool) -> Result<()> {
+        let mut changes = Vec::new();
+
+        // READ filter
+        let read_flags = if readable {
+            (libc::EV_ADD | libc::EV_ENABLE) as u16
+        } else {
+            libc::EV_DELETE as u16
+        };
+        changes.push(libc::kevent {
+            ident: fd as _,
+            filter: libc::EVFILT_READ,
+            flags: read_flags,
+            fflags: 0,
+            data: 0,
+            udata: token as _,
+        });
+
+        // WRITE filter
+        let write_flags = if writable {
+            (libc::EV_ADD | libc::EV_ENABLE) as u16
+        } else {
+            libc::EV_DELETE as u16
+        };
+        changes.push(libc::kevent {
+            ident: fd as _,
+            filter: libc::EVFILT_WRITE,
+            flags: write_flags,
+            fflags: 0,
+            data: 0,
+            udata: token as _,
+        });
+
+        let res = unsafe {
+            libc::kevent(
+                self.kq,
+                changes.as_ptr(),
+                changes.len() as i32,
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null(),
+            )
+        };
+
+        if res < 0 {
+            return Err(Error::last_os_error());
+        }
+        Ok(())
+    }
+
     pub fn delete(&self, fd: RawFd) -> Result<()> {
         let change = libc::kevent {
             ident: fd as _,
@@ -110,4 +168,54 @@ pub struct KEvent {
     pub token: Token,
     pub readable: bool,
     pub writable: bool,
+}
+
+// -----------------------------------------------------------------------------
+// Poller trait integration
+// -----------------------------------------------------------------------------
+
+use super::interest::{Interest, Event};
+use super::poller::Poller;
+
+impl Poller for Kqueue {
+    type Error = Error;
+
+    fn add(&self, fd: usize, token: Token, interest: Interest) -> Result<(), Self::Error> {
+        let (r, w) = match interest {
+            Interest::Readable => (true, false),
+            Interest::Writable => (false, true),
+            Interest::ReadWrite => (true, true),
+        };
+        self.add(fd as RawFd, token, r, w)
+    }
+
+    fn modify(&self, fd: usize, token: Token, interest: Interest) -> Result<(), Self::Error> {
+        let (r, w) = match interest {
+            Interest::Readable => (true, false),
+            Interest::Writable => (false, true),
+            Interest::ReadWrite => (true, true),
+        };
+        self.modify(fd as RawFd, token, r, w)
+    }
+
+    fn delete(&self, fd: usize) -> Result<(), Self::Error> {
+        self.delete(fd as RawFd)
+    }
+
+    fn wait(&self, events: &mut [Event], timeout_ms: isize) -> Result<usize, Self::Error> {
+        // Convert the generic Event slice into a temporary KEvent buffer, poll,
+        // then translate the results back. This avoids allocating when the
+        // caller reuses its events buffer across iterations.
+        let mut kevs: Vec<KEvent> = Vec::with_capacity(events.len());
+        unsafe { kevs.set_len(events.len()); }
+
+        let ready = Kqueue::wait(self, &mut kevs, timeout_ms)?;
+
+        for (dst, src) in events.iter_mut().zip(kevs.iter().take(ready)) {
+            dst.token = src.token;
+            dst.readable = src.readable;
+            dst.writable = src.writable;
+        }
+        Ok(ready)
+    }
 } 

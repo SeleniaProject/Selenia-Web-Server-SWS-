@@ -50,7 +50,7 @@ const H_CODES: [u32; 257] = [
 ];
 #[rustfmt::skip]
 const H_BITS: [u8; 257] = [
-    13,23,28,28,28,28,28,28,28,24,30,28,28,30,28,28,28,28,28,28,28,28,30,28,28,28,28,28,28,28,28,28,6,10,10,12,13,6,8,11,10,10,8,11,8,6,6,6,5,5,5,6,6,6,6,6,6,6,7,8,15,6,11,10,13,6,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,7,8,13,19,13,14,6,15,5,6,5,6,5,6,6,6,5,7,7,6,6,6,5,6,7,6,5,5,6,7,7,7,7,7,15,11,14,13,28,20,22,20,20,22,22,22,23,22,23,23,23,23,23,20,23,20,20,22,23,20,23,23,23,23,21,22,23,22,23,23,20,22,21,20,22,22,23,23,21,23,22,22,20,21,22,23,23,21,21,22,21,23,22,23,23,20,22,22,22,23,22,22,23,26,26,20,19,22,23,22,25,26,26,26,27,27,26,20,25,19,21,26,27,27,26,27,20,21,21,26,26,28,27,27,27,20,20,20,21,22,21,21,23,22,22,25,25,20,20,26,23,26,27,26,26,27,27,27,27,27,28,27,27,27,27,27,26,30,
+    13,23,28,28,28,28,28,28,28,24,30,28,28,30,28,28,28,28,28,28,28,28,30,28,28,28,28,28,28,28,28,28,6,10,10,12,13,6,8,11,10,10,8,11,8,6,6,6,5,5,5,6,6,6,6,6,6,6,7,8,15,6,11,10,13,6,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,7,8,13,19,13,14,6,15,5,6,5,6,5,6,6,6,5,7,7,6,6,6,5,6,7,6,5,5,6,7,7,7,7,7,15,11,14,13,28,20,22,20,20,22,22,22,23,22,23,23,23,23,23,20,23,20,20,22,23,20,23,23,23,23,21,22,23,22,23,23,20,22,21,20,22,22,23,23,21,23,22,22,20,21,22,23,23,21,21,22,21,23,22,23,23,20,22,22,22,23,22,22,23,26,26,20,19,22,23,22,25,26,26,26,27,27,26,20,25,19,21,26,27,27,26,27,20,21,21,26,26,28,27,27,27,20,20,20,21,22,21,21,23,22,22,25,25,20,20,26,23,26,27,26,26,27,27,27,27,27,28,27,27,27,27,27,26,30,0,
 ];
 
 // Simple decoder using a binary trie generated at runtime the first time it is
@@ -149,7 +149,7 @@ fn huffman_encode(data: &[u8]) -> Vec<u8> {
 // ------------------------------------------------------------
 // 3. Integer & string helpers
 // ------------------------------------------------------------
-fn encode_integer(mut value: usize, prefix_bits: u8) -> Vec<u8> {
+pub(crate) fn encode_integer(mut value: usize, prefix_bits: u8) -> Vec<u8> {
     let mut out = Vec::new();
     let max_prefix = (1u8 << prefix_bits) - 1;
     if value < max_prefix as usize {
@@ -166,7 +166,7 @@ fn encode_integer(mut value: usize, prefix_bits: u8) -> Vec<u8> {
     out
 }
 
-fn decode_integer(buf: &[u8], prefix_bits: u8) -> Option<(usize, usize)> {
+pub(crate) fn decode_integer(buf: &[u8], prefix_bits: u8) -> Option<(usize, usize)> {
     if buf.is_empty() { return None; }
     let mask = (1u8 << prefix_bits) - 1;
     let mut val = (buf[0] & mask) as usize;
@@ -184,7 +184,7 @@ fn decode_integer(buf: &[u8], prefix_bits: u8) -> Option<(usize, usize)> {
     Some((val, idx))
 }
 
-fn encode_string(s: &str) -> Vec<u8> {
+pub(crate) fn encode_string(s: &str) -> Vec<u8> {
     const HUFFMAN_THRESHOLD: f32 = 0.8; // encode if compressed size < 80%
     let huff = huffman_encode(s.as_bytes());
     if (huff.len() as f32) < (s.len() as f32) * HUFFMAN_THRESHOLD {
@@ -199,7 +199,7 @@ fn encode_string(s: &str) -> Vec<u8> {
     }
 }
 
-fn decode_string(buf: &[u8]) -> Option<(String, usize)> {
+pub(crate) fn decode_string(buf: &[u8]) -> Option<(String, usize)> {
     if buf.is_empty() { return None; }
     let huffman = buf[0] & 0x80 != 0;
     let (len, mut idx) = decode_integer(buf, 7)?;

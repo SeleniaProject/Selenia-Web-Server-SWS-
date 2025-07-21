@@ -3,7 +3,6 @@
 
 use std::io::{self, Write};
 use std::net::TcpStream;
-use super::hpack;
 
 use std::collections::{HashMap, VecDeque};
 

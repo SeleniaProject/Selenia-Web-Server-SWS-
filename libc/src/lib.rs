@@ -170,3 +170,8 @@ pub struct sigaction {
 extern "C" {
     pub fn sigaction(signum: c_int, act: *const sigaction, oldact: *mut sigaction) -> c_int;
 } 
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    pub fn sendfile(out_fd: c_int, in_fd: c_int, offset: *mut off_t, count: size_t) -> ssize_t;
+} 

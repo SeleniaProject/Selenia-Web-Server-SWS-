@@ -2,7 +2,7 @@
 //! Linux uses `sendfile`, Windows uses `TransmitFile`; other platforms fall back to buffered `std::io::copy`. // comment in English per guidelines
 
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self};
 use std::net::TcpStream;
 
 #[cfg(target_os = "linux")]

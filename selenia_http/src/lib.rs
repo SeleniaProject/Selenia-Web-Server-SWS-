@@ -6,13 +6,13 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, Duration};
-use std::fs::File;
+// removed unused File import
 
-use selenia_core::{log_info, log_warn, log_error};
+use selenia_core::{log_info, log_error};
 use selenia_core::metrics;
 use selenia_core::signals;
 use selenia_core::waf;
-use selenia_core::crypto::tls;
+use selenia_core::crypto::tls13;
 use selenia_core::crypto::sha256::sha256_digest;
 
 #[cfg(unix)]
@@ -21,6 +21,7 @@ mod parser;
 use parser::Parser;
 mod compress;
 mod zerocopy;
+mod hpack;
 mod http2;
 mod http3;
 mod qpack;
@@ -66,7 +67,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     let mut conns: HashMap<usize, Conn> = HashMap::new();
 
     loop {
-        if signals::should_terminate() { break; }
+        if signals::should_terminate() { break Ok(()); }
         if signals::take_reload_request() {
             log_info!("Reload requested (SIGHUP) – rotating log");
             selenia_core::logger::rotate("sws.log");
@@ -130,7 +131,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                         let rec_len = u16::from_be_bytes([conn.buf[3],conn.buf[4]]) as usize;
                         if conn.buf.len() >= 5+rec_len {
                             let handshake = &conn.buf[5..5+rec_len];
-                            if let Ok((resp, _state)) = tls::tls13::process_client_hello(handshake) {
+                            if let Ok((resp, _state)) = tls13::process_client_hello(handshake) {
                                 let _ = conn.stream.write_all(&resp);
                             }
                             ev.deregister(token)?;

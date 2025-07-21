@@ -5,6 +5,17 @@
 
 use core::str;
 use std::collections::HashMap;
+use std::sync::LazyLock;
+
+const BASE64_LOOKUP: LazyLock<[u8;256]> = LazyLock::new(|| {
+    const INVALID: u8 = 0xFF;
+    let mut t = [INVALID; 256];
+    let mut i = 0u8;
+    for c in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".iter() {
+        t[*c as usize] = i; i += 1;
+    }
+    t
+});
 
 static mut POLICIES: Option<Vec<Policy>> = None;
 
@@ -74,24 +85,13 @@ fn base64_url_decode(s:&str)->Vec<u8>{
 /// Very small base64 decoder supporting standard & URL-safe alphabet. No padding validation.
 fn decode_base64_simple(inp: &str) -> Vec<u8> {
     const INVALID: u8 = 0xFF;
-    // Build reverse lookup table once.
-    fn table() -> [u8; 256] {
-        let mut t = [INVALID; 256];
-        let mut i = 0u8;
-        for c in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".iter() {
-            t[*c as usize] = i; i += 1;
-        }
-        t
-    }
-    static T: [u8; 256] = table();
-
     let bytes = inp.as_bytes();
     let mut out = Vec::with_capacity(bytes.len() * 3 / 4);
     let mut chunk = [0u8;4];
     let mut idx = 0;
     for &b in bytes {
         if b == b'=' { break; }
-        let val = T[b as usize];
+        let val = BASE64_LOOKUP[b as usize];
         if val == INVALID { continue; }
         chunk[idx] = val; idx +=1;
         if idx==4 {
