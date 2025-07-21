@@ -30,7 +30,7 @@
 
 ### 2.3 HTTP/3 (QUIC)
 - [ ] QUIC Transport ハンドシェイク & パケット化
-- [ ] ストリームスケジューラ & フロー制御
+- [x] ストリームスケジューラ & フロー制御
 - [ ] QPACK エンコーダ / デコーダ統合
 - [ ] 0-RTT / Retry / Datagram Extension 対応
 

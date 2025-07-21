@@ -12,6 +12,8 @@
 //! • Pure Rust, no external crypto crates – Version Negotiation requires no AEAD
 //! • Keep interface symmetric with the TLS helpers used by HTTP/1 & /2 code
 
+use std::collections::{HashMap, VecDeque};
+
 /// Draft/Version negotiated by this implementation (0x00000001 = QUIC v1)
 const QUIC_VERSION: u32 = 0x0000_0001;
 
@@ -119,4 +121,73 @@ pub fn decode_datagram(buf: &[u8]) -> Option<(u64, &[u8])> {
     let len = buf[idx] as usize; idx+=1;
     if buf.len()<idx+len {return None;}
     Some((sid,&buf[idx..idx+len]))
+} 
+
+// ---------------- Stream & Flow Control ----------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StreamType { BiDi, Uni }
+
+#[derive(Debug)]
+pub struct StreamState {
+    pub id: u64,
+    pub stream_type: StreamType,
+    pub send_offset: usize,
+    pub recv_offset: usize,
+    pub window: i32,
+}
+
+impl StreamState {
+    fn new(id: u64, stype: StreamType, init_win: i32) -> Self {
+        Self { id, stream_type: stype, send_offset:0, recv_offset:0, window:init_win }
+    }
+}
+
+#[derive(Default)]
+pub struct FlowMgr {
+    conn_window: i32,
+    stream_windows: HashMap<u64, i32>,
+}
+
+impl FlowMgr {
+    pub fn new() -> Self { Self { conn_window: 16_384, stream_windows: HashMap::new() } }
+
+    pub fn consume(&mut self, stream_id:u64, len:i32) -> bool {
+        let sw = self.stream_windows.entry(stream_id).or_insert(16_384);
+        if *sw < len || self.conn_window < len { return false; }
+        *sw -= len; self.conn_window -= len; true
+    }
+
+    pub fn update_window(&mut self, stream_id:Option<u64>, inc:i32) {
+        if let Some(id)=stream_id {
+            *self.stream_windows.entry(id).or_insert(0) += inc;
+        } else { self.conn_window += inc; }
+    }
+}
+
+#[derive(Default)]
+pub struct Scheduler {
+    queue: VecDeque<u64>,
+    pending: HashMap<u64, usize>,
+}
+
+impl Scheduler {
+    pub fn enqueue(&mut self, stream_id:u64, bytes:usize) {
+        let entry = self.pending.entry(stream_id).or_insert(0);
+        *entry += bytes;
+        if !self.queue.contains(&stream_id) { self.queue.push_back(stream_id); }
+    }
+
+    pub fn next(&mut self) -> Option<u64> {
+        while let Some(id) = self.queue.pop_front() {
+            if let Some(rem) = self.pending.get_mut(&id) {
+                if *rem > 0 {
+                    *rem -= 1; // arbitrary 1-byte quantum
+                    if *rem > 0 { self.queue.push_back(id); }
+                    return Some(id);
+                }
+            }
+        }
+        None
+    }
 } 
