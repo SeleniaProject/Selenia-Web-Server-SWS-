@@ -13,6 +13,8 @@
 
 use super::{hkdf::hkdf_extract, hkdf::hkdf_expand_label, sha256::sha256_digest, aes_gcm, rand::fill_random};
 use core::convert::TryInto;
+use std::collections::HashMap;
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 const SUITE_TLS_AES_128_GCM_SHA256: [u8; 2] = [0x13, 0x01];
 const LABEL_DERIVED: &[u8] = b"derived";
@@ -43,6 +45,41 @@ impl Tls13State {
             client_seq: 0,
         }
     }
+}
+
+// -----------------------------------------------------------------------------
+// 5. Session Ticket & Resumption (RFC 8446 §4.6.1 – simplified)
+// -----------------------------------------------------------------------------
+
+/// In-memory session ticket store. For production this should be
+/// shared across workers or backed by an external KV.
+#[derive(Default)]
+pub struct TicketStore {
+    tickets: HashMap<Vec<u8>, (Tls13State, u64)>, // ticket -> (state, expiry_epoch_ms)
+}
+
+impl TicketStore {
+    /// Issue a new ticket for the given connection state, returns wire bytes.
+    pub fn issue(&mut self, state: &Tls13State, lifetime: Duration) -> Vec<u8> {
+        let mut ticket = [0u8; 32];
+        let _ = rand::fill_random(&mut ticket);
+        let expiry = now_ms() + lifetime.as_millis() as u64;
+        self.tickets.insert(ticket.to_vec(), (state.clone(), expiry));
+        ticket.to_vec()
+    }
+
+    /// Attempt to resume from ticket. Returns cloned state when valid.
+    pub fn resume(&mut self, ticket: &[u8]) -> Option<Tls13State> {
+        let now = now_ms();
+        if let Some((state, exp)) = self.tickets.get(ticket) {
+            if *exp > now { return Some(state.clone()); }
+        }
+        None
+    }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 
 /// Process ClientHello and return ServerHello record.
