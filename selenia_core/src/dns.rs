@@ -111,10 +111,10 @@ impl DnsCache {
             }
             // Check if key exists.
             let next = (*x).forwards[0].load(Ordering::Acquire);
-            if let Some(exists) = next.as_ref() {
+            if let Some(exists) = (next as *mut Node).as_mut() {
                 if exists.key == key {
-                    (*exists).value = value;
-                    (*exists).expires = Instant::now() + ttl;
+                    exists.value = value;
+                    exists.expires = Instant::now() + ttl;
                     return;
                 }
             }

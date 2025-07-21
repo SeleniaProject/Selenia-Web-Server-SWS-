@@ -14,15 +14,19 @@ pub fn hkdf_extract(salt: &[u8], ikm: &[u8]) -> [u8;32] {
 
 /// HKDF-Expand-Label used in TLS 1.3.
 /// label = "tls13 " || label
-pub fn hkdf_expand_label(secret: &[u8;32], label: &[u8], context: &[u8], out_len: usize) -> Vec<u8> {
+pub fn hkdf_expand_label(secret: &[u8], label: &[u8], context: &[u8], out_len: usize) -> Vec<u8> {
+    assert_eq!(secret.len(), 32, "HKDF secret must be 32 bytes");
+    let mut prk = [0u8; 32];
+    prk.copy_from_slice(&secret[..32]);
+
     let mut info = Vec::with_capacity(2 + 1 + 6 + label.len() + 1 + context.len());
     info.extend_from_slice(&(out_len as u16).to_be_bytes());
-    info.push((6+label.len()) as u8);
+    info.push((6 + label.len()) as u8);
     info.extend_from_slice(b"tls13 ");
     info.extend_from_slice(label);
     info.push(context.len() as u8);
     info.extend_from_slice(context);
-    HkdfSha256{prk:*secret}.expand(&info, out_len)
+    HkdfSha256 { prk }.expand(&info, out_len)
 }
 
 impl HkdfSha256 {

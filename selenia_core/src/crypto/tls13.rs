@@ -71,10 +71,13 @@ pub fn process_client_hello(buf: &[u8]) -> Result<(Vec<u8>, Tls13State), TlsErro
     let client_hs = hkdf_expand_label(&handshake_secret, b"c hs traffic", &sha256_digest(b""), 32);
     let server_hs = hkdf_expand_label(&handshake_secret, b"s hs traffic", &sha256_digest(b""), 32);
 
-    let client_key: [u8;16]=hkdf_expand_label(&client_hs, LABEL_KEY, &[], 16).try_into().unwrap();
-    let server_key: [u8;16]=hkdf_expand_label(&server_hs, LABEL_KEY, &[], 16).try_into().unwrap();
-    let client_iv: [u8;12]=hkdf_expand_label(&client_hs, LABEL_IV, &[], 12).try_into().unwrap();
-    let server_iv: [u8;12]=hkdf_expand_label(&server_hs, LABEL_IV, &[], 12).try_into().unwrap();
+    let client_hs_arr: [u8; 32] = client_hs.clone().try_into().unwrap();
+    let server_hs_arr: [u8; 32] = server_hs.clone().try_into().unwrap();
+
+    let client_key: [u8;16] = hkdf_expand_label(&client_hs_arr, LABEL_KEY, &[], 16).try_into().unwrap();
+    let server_key: [u8;16] = hkdf_expand_label(&server_hs_arr, LABEL_KEY, &[], 16).try_into().unwrap();
+    let client_iv: [u8;12] = hkdf_expand_label(&client_hs_arr, LABEL_IV, &[], 12).try_into().unwrap();
+    let server_iv: [u8;12] = hkdf_expand_label(&server_hs_arr, LABEL_IV, &[], 12).try_into().unwrap();
 
     // Build minimal ServerHello record (TLSPlaintext)
     let mut random=[0u8;32]; fill_random(&mut random);

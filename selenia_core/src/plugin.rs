@@ -4,12 +4,16 @@
 use std::collections::HashMap;
 use std::ffi::{CString, c_void};
 use std::path::Path;
-use std::sync::RwLock;
+use std::sync::{RwLock, OnceLock};
 
 #[cfg(unix)] use libc::{dlopen, dlsym, dlclose, RTLD_NOW};
 #[cfg(windows)] use winapi::um::libloaderapi::{LoadLibraryA, GetProcAddress, FreeLibrary};
 
-static PLUGINS: RwLock<HashMap<String, PluginHandle>> = RwLock::new(HashMap::new());
+static PLUGINS: OnceLock<RwLock<HashMap<String, PluginHandle>>> = OnceLock::new();
+
+fn plugins() -> &'static RwLock<HashMap<String, PluginHandle>> {
+    PLUGINS.get_or_init(|| RwLock::new(HashMap::new()))
+}
 
 pub type PluginInit = unsafe extern "C" fn();
 
@@ -52,14 +56,14 @@ pub fn load_plugin<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
         }
         let init: PluginInit = std::mem::transmute(init_ptr);
         init(); // call plugin init
-        PLUGINS.write().unwrap().insert(path.as_ref().to_string_lossy().into_owned(), PluginHandle{name:path.as_ref().to_string_lossy().into_owned(), lib:handle, init});
+        plugins().write().unwrap().insert(path.as_ref().to_string_lossy().into_owned(), PluginHandle{name:path.as_ref().to_string_lossy().into_owned(), lib:handle, init});
     }
     Ok(())
 }
 
 /// Unload plugin by name.
 pub fn unload_plugin(name: &str) {
-    PLUGINS.write().unwrap().remove(name);
+    plugins().write().unwrap().remove(name);
 }
 
 /// Validate a plugin by loading it and immediately unloading; ensures required symbol exists.

@@ -33,11 +33,13 @@ pub fn configure(capacity:u32, refill_per_sec:u32) {
 }
 
 pub fn allow(ip:&str) -> bool {
-    let mut st=state().lock().unwrap();
-    let now=Instant::now();
-    let b = st.map.entry(ip.to_string()).or_insert(Bucket{tokens:st.cap,last:now});
-    let elapsed=now.duration_since(b.last).as_secs_f64();
-    b.tokens=(b.tokens + elapsed*st.rate).min(st.cap);
+    let mut st = state().lock().unwrap();
+    let now = Instant::now();
+    let cap = st.cap;
+    let rate = st.rate;
+    let b = st.map.entry(ip.to_string()).or_insert(Bucket { tokens: cap, last: now });
+    let elapsed = now.duration_since(b.last).as_secs_f64();
+    b.tokens = (b.tokens + elapsed * rate).min(cap);
     b.last=now;
     if b.tokens>=1.0 { b.tokens-=1.0; true } else { false }
 } 
