@@ -95,13 +95,14 @@ impl DnsCache {
     /// Insert (or update) cache entry.
     pub fn insert(&self, key: String, value: IpAddr, ttl: Duration) {
         let lvl = random_level(&key);
+        let key_str = key.as_str();
         let mut update: [*mut Node; MAX_LEVEL] = [ptr::null_mut(); MAX_LEVEL];
         let mut x = self.head;
         unsafe {
             // Find insertion point for each level.
             for i in (0..MAX_LEVEL).rev() {
                 while let Some(nxt) = (*x).forwards[i].load(Ordering::Acquire).as_ref() {
-                    if nxt.key < key {
+                    if nxt.key.as_str() < key_str {
                         x = nxt as *const _ as *mut _;
                     } else {
                         break;
@@ -134,7 +135,7 @@ impl DnsCache {
             let mut x = self.head;
             for i in (0..MAX_LEVEL).rev() {
                 while let Some(nxt) = (*x).forwards[i].load(Ordering::Acquire).as_ref() {
-                    if nxt.key < key {
+                    if nxt.key.as_str() < key {
                         x = nxt as *const _ as *mut _;
                     } else {
                         break;

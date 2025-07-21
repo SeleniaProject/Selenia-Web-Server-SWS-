@@ -47,7 +47,7 @@ pub fn rotate(path:&str) {
     unsafe {
         if let Some(m) = &FILE {
             // Acquire the lock to flush and unlock the current log file before rotation.
-            let _ = m.lock().unwrap();
+            drop(m.lock().unwrap());
         }
     } // FILE mutex guard dropped here before rename
     let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();

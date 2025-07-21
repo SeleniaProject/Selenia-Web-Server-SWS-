@@ -405,7 +405,8 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
                 stream.write_all(&body)?;
             }
             log_info!("{} - \"{} {}\" {} {}", peer, method, path, status, body.len());
-        }
+        // Response finished
+        
     Ok(())
 }
 

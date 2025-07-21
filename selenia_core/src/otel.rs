@@ -50,7 +50,8 @@ fn send(body:Vec<u8>) {
         // DATA frame
         let mut df=vec![(len>>16) as u8,(len>>8) as u8,len as u8,0x00,0x01,0x00,0x00,0x00,0x01];
         let _=s.write_all(&df); let _=s.write_all(&body);
-        let mut _resp=[0u8;16]; let _=s.read(&_resp);
+        let mut _resp = [0u8; 16];
+        let _ = s.read(&mut _resp);
     } else {
         log(LogLevel::Warn, format_args!("OTLP exporter: connect failed"));
     }

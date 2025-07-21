@@ -92,7 +92,7 @@ pub fn generate_and_install(names: &[&str]) -> Result<(), String> {
         } as u32;
         numbers.push(num);
     }
-    unsafe { self::linux::install_dynamic(&numbers) }
+    unsafe { crate::seccomp::linux_dynamic_installer::install_dynamic(&numbers) }
 }
 
 #[cfg(target_os = "linux")]

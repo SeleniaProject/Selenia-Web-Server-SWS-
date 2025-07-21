@@ -23,7 +23,8 @@ pub fn init_term_signals() {
         let action = sigaction {
             sa_sigaction: handler,
             sa_flags: SA_RESTART,
-            sa_mask: std::mem::zeroed(),
+            sa_restorer: std::ptr::null_mut(),
+            sa_mask: 0,
         };
         let _ = sigaction(SIGINT, &action, std::ptr::null_mut());
         let _ = sigaction(SIGTERM, &action, std::ptr::null_mut());
