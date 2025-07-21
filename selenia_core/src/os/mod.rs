@@ -13,6 +13,11 @@ mod kqueue;
 #[cfg(any(target_os = "macos", target_os = "freebsd", target_os="openbsd"))]
 pub use kqueue::*;
 
+#[cfg(target_os = "windows")]
+mod iocp;
+#[cfg(target_os = "windows")]
+pub use iocp::*;
+
 // EventLoop implementation is selected per platform at compile time and re-exported.
 // Linux → epoll, BSD/macOS → kqueue, others → stub.
 
@@ -26,9 +31,14 @@ mod event_loop_kqueue;
 #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
 pub use event_loop_kqueue::EventLoop;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd")))]
+#[cfg(target_os = "windows")]
+mod event_loop_iocp;
+#[cfg(target_os = "windows")]
+pub use event_loop_iocp::EventLoop;
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "windows")))]
 mod event_loop_stub;
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "windows")))]
 pub use event_loop_stub::EventLoop;
 
 pub mod interest;

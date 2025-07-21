@@ -6,7 +6,7 @@
 
 ## 1. Core / OS 抽象層
 - [x] kqueue ポーラ実装 (macOS / *BSD)
-- [ ] IOCP ポーラ実装 (Windows)
+- [x] IOCP ポーラ実装 (Windows)
 - [ ] timerfd / EVFILT_TIMER / WaitableTimer を統一するクロスプラットフォームタイマ抽象
 - [ ] NUMA ピン止め対応マルチスレッド EventLoop への統合
 - [ ] Accept スレッド & SO_REUSEPORT 分散アルゴリズム
