@@ -63,6 +63,24 @@ impl Connection {
             _ => {},
         }
     }
+
+    /// Consume DATA frame length and adjust windows, returning true if successful.
+    pub fn on_data_frame(&mut self, stream_id:u32, len:usize, end_stream:bool) -> bool {
+        if !self.fc.try_reserve(stream_id, len as i32) { return false; }
+        if end_stream {
+            if let Some(s)=self.streams.get_mut(&stream_id) { s.state = StreamState::HalfClosedRemote; }
+        }
+        true
+    }
+
+    /// Build WINDOW_UPDATE frame with given increment.
+    pub fn build_window_update(stream_id:u32, increment:u32) -> Vec<u8> {
+        let mut out = Vec::with_capacity(13);
+        let fh = FrameHeader { length:4, type_:FrameType::WindowUpdate, flags:0, stream_id };
+        fh.serialize(&mut out);
+        out.extend_from_slice(&increment.to_be_bytes());
+        out
+    }
 }
 
 // -------------------------- Priority Tree ------------------------------

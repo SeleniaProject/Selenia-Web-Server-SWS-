@@ -24,7 +24,7 @@
 - [x] フレームパーサ / シリアライザ完全実装
 - [x] ストリーム状態遷移管理 (HEADERS, DATA, RST など)
 - [x] SETTINGS / ACK 交渉処理
-- [ ] ウィンドウフロー制御の本実装
+- [x] ウィンドウフロー制御の本実装
 - [ ] HPACK とストリームの結線
 - [ ] GOAWAY / graceful shutdown 対応
 
