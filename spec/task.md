@@ -54,7 +54,7 @@
 
 ## 6. 観測性
 - [x] 構造化 JSON ロガー (動的レベルリロード対応)
-- [ ] Prometheus `/metrics` エクスポータ
+- [x] Prometheus `/metrics` エクスポータ
 - [ ] ヒストグラム / サマリーメトリクス
 - [ ] OpenTelemetry Trace エクスポータ (OTLP gRPC)
 - [ ] `traceparent` 自動伝播
