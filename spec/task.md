@@ -45,11 +45,11 @@
 - [x] OCSP Stapling 自動化
 
 ### 4. ルーティング / セキュリティ
-- [ ] Radix ツリー Router (rewrite, ワイルドカード対応)
-- [ ] JWT ベース RBAC ミドルウェア
-- [ ] WAF ルールエンジン実装
-- [ ] eBPF インラインルール評価器
-- [ ] トークンバケット Rate Limit ミドルウェア
+- [x] Radix ツリー Router (rewrite, ワイルドカード対応)
+- [x] JWT ベース RBAC ミドルウェア
+- [x] WAF ルールエンジン実装
+- [x] eBPF インラインルール評価器
+- [x] トークンバケット Rate Limit ミドルウェア
 
 ### 5. プラグイン & サンドボックス
 - [ ] C ABI プラグインローダ (`cdylib`) バージョン検査付き
