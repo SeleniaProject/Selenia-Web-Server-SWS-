@@ -25,12 +25,12 @@
 - [x] wrk2 ベンチシナリオ統合
 
 #### 2.2 HTTP/2
-- [ ] フレームパーサ / シリアライザ完全実装
-- [ ] ストリーム状態遷移管理 (HEADERS, DATA, RST など)
-- [ ] SETTINGS / ACK 交渉処理
-- [ ] ウィンドウフロー制御の本実装
-- [ ] HPACK とストリームの結線
-- [ ] GOAWAY / graceful shutdown 対応
+- [x] フレームパーサ / シリアライザ完全実装
+- [x] ストリーム状態遷移管理 (HEADERS, DATA, RST など)
+- [x] SETTINGS / ACK 交渉処理
+- [x] ウィンドウフロー制御の本実装
+- [x] HPACK とストリームの結線
+- [x] GOAWAY / graceful shutdown 対応
 
 #### 2.3 HTTP/3 (QUIC)
 - [ ] QUIC Transport ハンドシェイク & パケット化
