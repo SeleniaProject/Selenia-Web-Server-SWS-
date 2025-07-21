@@ -35,6 +35,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - name: Run benches
         run: cargo bench | cat
+      - name: Compile bench_scenarios
+        run: rustc tools/bench_scenarios.rs -O -o bench_scenarios
+      - name: Run bench scenarios (skip if tools absent)
+        run: ./bench_scenarios all http://127.0.0.1/ | cat
   sbom:
     runs-on: ubuntu-22.04
     steps:
