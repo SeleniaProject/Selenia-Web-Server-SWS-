@@ -61,10 +61,28 @@ pub fn log(level: LogLevel, args: fmt::Arguments<'_>) {
     let _guard = LOGGER_LOCK.lock().unwrap();
     let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     let millis = ts.as_secs()*1000 + ts.subsec_millis() as u64;
-    let tid = std::thread::current().id();
-    let line = format!("[{millis}] [{level}] {:?}: {}\n", tid, args);
-    let _ = io::stderr().write_all(line.as_bytes());
-    unsafe { if let Some(f) = &FILE { let _ = f.lock().unwrap().write_all(line.as_bytes()); } }
+    let tid = format!("{:?}", std::thread::current().id());
+    let msg_raw = format!("{}", args);
+    let msg = escape_json(&msg_raw);
+    let json = format!(
+        "{{\"ts\":{},\"lvl\":\"{}\",\"tid\":\"{}\",\"msg\":\"{}\"}}\n",
+        millis, level, tid, msg);
+    let _ = io::stderr().write_all(json.as_bytes());
+    unsafe { if let Some(f) = &FILE { let _ = f.lock().unwrap().write_all(json.as_bytes()); } }
+}
+
+fn escape_json(s:&str)->String{
+    let mut out=String::with_capacity(s.len()+8);
+    for ch in s.chars(){
+        match ch{
+            '"'=>out.push_str("\\\""),
+            '\\'=>out.push_str("\\\\"),
+            '\n'=>out.push_str("\\n"),
+            '\r'=>out.push_str("\\r"),
+            _=>out.push(ch),
+        }
+    }
+    out
 }
 
 // ------------- Convenience macros -------------

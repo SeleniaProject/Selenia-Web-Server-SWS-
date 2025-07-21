@@ -53,7 +53,7 @@
 - [ ] Capability および seccomp 制限統合
 
 ## 6. 観測性
-- [ ] 構造化 JSON ロガー (動的レベルリロード対応)
+- [x] 構造化 JSON ロガー (動的レベルリロード対応)
 - [ ] Prometheus `/metrics` エクスポータ
 - [ ] ヒストグラム / サマリーメトリクス
 - [ ] OpenTelemetry Trace エクスポータ (OTLP gRPC)
