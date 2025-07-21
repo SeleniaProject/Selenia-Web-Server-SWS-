@@ -6,6 +6,64 @@ use std::net::TcpStream;
 
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
+// -------------------------- Stream State Machine -----------------------------
+
+/// RFC 7540 §5.1 で定義されるストリーム状態
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamState {
+    Idle,
+    ReservedLocal,
+    ReservedRemote,
+    Open,
+    HalfClosedLocal,
+    HalfClosedRemote,
+    Closed,
+}
+
+impl Default for StreamState { fn default() -> Self { StreamState::Idle } }
+
+#[derive(Debug, Default)]
+pub struct Stream {
+    pub id: u32,
+    pub state: StreamState,
+}
+
+#[derive(Default)]
+pub struct Connection {
+    streams: HashMap<u32, Stream>,
+}
+
+impl Connection {
+    pub fn new() -> Self { Self { streams: HashMap::new() } }
+
+    /// Handle an inbound frame, updating stream state per RFC 7540 §5.1/§5.4
+    pub fn on_frame(&mut self, fh: &FrameHeader) {
+        let s = self.streams.entry(fh.stream_id).or_insert(Stream { id: fh.stream_id, state: StreamState::Idle });
+        use StreamState::*;
+        match s.state {
+            Idle => match fh.type_ {
+                FrameType::Headers | FrameType::Priority => s.state = Open,
+                FrameType::PushPromise => s.state = ReservedRemote,
+                _ => {},
+            },
+            Open => match fh.type_ {
+                FrameType::Data => if fh.flags & 0x1 != 0 { s.state = HalfClosedRemote; }, // END_STREAM
+                FrameType::RstStream => s.state = Closed,
+                _ => {},
+            },
+            HalfClosedRemote => match fh.type_ {
+                FrameType::RstStream => s.state = Closed,
+                _ => {},
+            },
+            HalfClosedLocal => match fh.type_ {
+                FrameType::Data => {},
+                FrameType::RstStream => s.state = Closed,
+                _ => {},
+            },
+            _ => {},
+        }
+    }
+}
 
 // -------------------------- Priority Tree ------------------------------
 /// Represents a single HTTP/2 stream node inside the priority tree.
@@ -197,6 +255,71 @@ impl Scheduler {
             self.ptree.reprioritize(id, parent, weight, exclusive);
         } else {
             self.ptree.add_stream(id, parent, weight, exclusive);
+        }
+    }
+}
+
+// -------------------------- SETTINGS -----------------------------
+
+pub const SETTINGS_HEADER_TABLE_SIZE: u16 = 0x1;
+pub const SETTINGS_ENABLE_PUSH: u16 = 0x2;
+pub const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
+pub const SETTINGS_INITIAL_WINDOW_SIZE: u16 = 0x4;
+pub const SETTINGS_MAX_FRAME_SIZE: u16 = 0x5;
+pub const SETTINGS_MAX_HEADER_LIST_SIZE: u16 = 0x6;
+
+#[derive(Debug, Default)]
+pub struct Settings(pub Vec<(u16, u32)>);
+
+impl Settings {
+    pub fn encode(&self, out: &mut Vec<u8>) {
+        for (id, val) in &self.0 {
+            out.extend_from_slice(&id.to_be_bytes());
+            out.extend_from_slice(&val.to_be_bytes());
+        }
+    }
+
+    pub fn decode(buf: &[u8]) -> Option<Self> {
+        if buf.len() % 6 != 0 { return None; }
+        let mut v = Vec::new();
+        let mut pos = 0;
+        while pos < buf.len() {
+            let id = u16::from_be_bytes([buf[pos], buf[pos+1]]);
+            let val = u32::from_be_bytes([buf[pos+2], buf[pos+3], buf[pos+4], buf[pos+5]]);
+            v.push((id, val));
+            pos += 6;
+        }
+        Some(Settings(v))
+    }
+}
+
+impl Connection {
+    pub fn build_settings_frame(settings: &Settings, flags: u8) -> Vec<u8> {
+        let mut payload = Vec::new();
+        settings.encode(&mut payload);
+        let mut out = Vec::with_capacity(9 + payload.len());
+        let fh = FrameHeader { length: payload.len() as u32, type_: FrameType::Settings, flags, stream_id: 0 };
+        fh.serialize(&mut out);
+        out.extend_from_slice(&payload);
+        out
+    }
+}
+
+impl Connection {
+    /// Handle SETTINGS frame (ACK or new settings)
+    fn on_settings(&mut self, fh:&FrameHeader, payload:&[u8]) {
+        if fh.flags & 0x1 != 0 {
+            // ACK – nothing to do for now.
+        } else {
+            if let Some(settings) = Settings::decode(payload) {
+                // Apply settings such as INITIAL_WINDOW_SIZE
+                for (id,val) in settings.0 {
+                    if id == SETTINGS_INITIAL_WINDOW_SIZE {
+                        self.fc.conn_window = val as i32;
+                    }
+                }
+            }
+            // In real implementation we would send ACK back.
         }
     }
 }
