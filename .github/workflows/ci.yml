@@ -1,8 +1,14 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  schedule:
+    # Nightly exhaustive fuzz run – 24h budget
+    - cron: "0 3 * * *"
 
 jobs:
-  build:
+  build-test:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -13,43 +19,50 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.target }}
-      - run: cargo fmt --check
-      - run: cargo clippy --deny warnings
-      - run: cargo test --all --release
-      - run: cargo llvm-cov --fail-under 100
-      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Format check
+        run: cargo fmt --check
+      - name: Lint (clippy)
+        run: cargo clippy --deny warnings
+      - name: Unit tests (release)
+        run: cargo test --all --release
+      - name: Coverage (llvm-cov)
+        run: cargo llvm-cov --fail-under 100 --all-features --workspace
+      - name: Build (release)
+        run: cargo build --release --target ${{ matrix.target }}
+
   fuzz:
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
-      - run: cargo fuzz run http_parser -- -max_total_time=3600
+      - name: Run http_parser fuzz (24h)
+        run: cargo fuzz run http_parser -- -max_total_time=86400 -jobs=$(nproc)
+
   bench:
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push'
+    needs: build-test
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - name: Run benches
-        run: cargo bench | cat
-      - name: Compile bench_scenarios
-        run: rustc tools/bench_scenarios.rs -O -o bench_scenarios
-      - name: Run bench scenarios (skip if tools absent)
-        run: ./bench_scenarios all http://127.0.0.1/ | cat
+      - name: Run synthetic benchmarks
+        run: cargo run --package tools --release -- bench
+
   sbom:
     runs-on: ubuntu-22.04
+    needs: build-test
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Generate SBOM
-        run: |
-          cargo install cargo-bom || true
-          cargo bom -f json > dist/sbom.json
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Generate SBOM (Syft)
+        uses: anchore/syft-action@v0.5.0
         with:
-          name: sbom
-          path: dist/sbom.json 
+          image: "scratch"
+          output: "spdx-json=dist/sbom.json"
+      - name: Sign SBOM (cosign)
+        uses: sigstore/cosign-installer@v3
+      - name: Cosign sign
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign --key k8s://cluster/key dist/sbom.json 
