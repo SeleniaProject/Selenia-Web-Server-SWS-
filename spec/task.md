@@ -25,7 +25,7 @@
 - [x] ストリーム状態遷移管理 (HEADERS, DATA, RST など)
 - [x] SETTINGS / ACK 交渉処理
 - [x] ウィンドウフロー制御の本実装
-- [ ] HPACK とストリームの結線
+- [x] HPACK とストリームの結線
 - [ ] GOAWAY / graceful shutdown 対応
 
 ### 2.3 HTTP/3 (QUIC)
@@ -80,4 +80,4 @@
 
 ### Legend
 - ✅ / `[x]` : 実装完了・テスト済み
-- ⬜️ / `[ ]` : 未実装 / 進行中 
+- ⬜️ / `[ ]`

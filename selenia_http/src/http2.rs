@@ -6,6 +6,8 @@ use std::net::TcpStream;
 
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
+use crate::hpack::{HpackEncoder, HpackDecoder};
+
 // -------------------------- Stream State Machine -----------------------------
 
 /// RFC 7540 §5.1 で定義されるストリーム状態
@@ -31,10 +33,12 @@ pub struct Stream {
 #[derive(Default)]
 pub struct Connection {
     streams: HashMap<u32, Stream>,
+    encoder: HpackEncoder,
+    decoder: HpackDecoder,
 }
 
 impl Connection {
-    pub fn new() -> Self { Self { streams: HashMap::new() } }
+    pub fn new() -> Self { Self { streams: HashMap::new(), encoder: HpackEncoder::new(), decoder: HpackDecoder::new() } }
 
     /// Handle an inbound frame, updating stream state per RFC 7540 §5.1/§5.4
     pub fn on_frame(&mut self, fh: &FrameHeader) {
@@ -80,6 +84,22 @@ impl Connection {
         fh.serialize(&mut out);
         out.extend_from_slice(&increment.to_be_bytes());
         out
+    }
+
+    /// Encode headers into one HEADERS frame using HPACK.
+    pub fn encode_headers(&mut self, stream_id:u32, headers:&[(String,String)], end_stream:bool) -> Vec<u8> {
+        let payload = self.encoder.encode(headers);
+        let mut out = Vec::with_capacity(9+payload.len());
+        let flags = if end_stream { 0x1 /* END_STREAM */ | 0x4 /* END_HEADERS */ } else { 0x4 };
+        let fh = FrameHeader { length:payload.len() as u32, type_:FrameType::Headers, flags, stream_id };
+        fh.serialize(&mut out);
+        out.extend_from_slice(&payload);
+        out
+    }
+
+    /// Decode HEADERS payload, returning header list.
+    pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> {
+        self.decoder.decode(payload).ok()
     }
 }
 
