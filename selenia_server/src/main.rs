@@ -21,11 +21,13 @@ use std::process::Command;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
+#[cfg(unix)]
+use libc::{SIGTERM, SIGHUP};
 
 #[cfg(unix)]
 mod unix_master {
     use super::*;
-    use libc::{kill, pid_t, SIGTERM};
+    use libc::{kill, pid_t};
 
     /// Spawn `count` worker processes by re-execing self with env SWS_ROLE=worker.
     pub fn spawn_workers(count: usize, cfg_path: &str) -> Vec<pid_t> {
