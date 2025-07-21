@@ -39,10 +39,10 @@
 - [x] 0-RTT / Retry / Datagram Extension 対応
 
 ### 3. TLS / Crypto
-- [ ] TLS 1.3 ハンドシェイクステートマシン
-- [ ] レコードレイヤ (ChaCha20-Poly1305, AES-GCM) 実装
-- [ ] セッションチケット & 再開機構
-- [ ] OCSP Stapling 自動化
+- [x] TLS 1.3 ハンドシェイクステートマシン
+- [x] レコードレイヤ (ChaCha20-Poly1305, AES-GCM) 実装
+- [x] セッションチケット & 再開機構
+- [x] OCSP Stapling 自動化
 
 ### 4. ルーティング / セキュリティ
 - [ ] Radix ツリー Router (rewrite, ワイルドカード対応)
