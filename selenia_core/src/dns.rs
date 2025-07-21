@@ -76,6 +76,12 @@ impl DnsCache {
                 }
             }
         });
+        // Spawn periodic cleanup thread.
+        let cache_cleanup = Arc::clone(&cache);
+        thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(500));
+            cache_cleanup.cleanup_expired();
+        });
         cache
     }
 

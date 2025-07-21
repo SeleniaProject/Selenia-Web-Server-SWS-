@@ -10,11 +10,11 @@
 - [x] timerfd / EVFILT_TIMER / WaitableTimer を統一するクロスプラットフォームタイマ抽象
 - [x] NUMA ピン止め対応マルチスレッド EventLoop への統合
 - [x] Accept スレッド & SO_REUSEPORT 分散アルゴリズム
-- [ ] Lock-Free Skiplist を用いた非同期 DNS キャッシュ
+- [x] Lock-Free Skiplist を用いた非同期 DNS キャッシュ
 
 ## 2. HTTP スタック
 ### 2.1 HTTP/1.x
-- [ ] ボディパーサ (chunked, Content-Length)
+- [x] ボディパーサ (chunked, Content-Length)
 - [ ] エラーハンドリング & ステータスマッピング
 - [ ] Keep-Alive 接続プール自動チューニング
 - [ ] `cargo fuzz` 対応 HTTP/1 パーザハーネス

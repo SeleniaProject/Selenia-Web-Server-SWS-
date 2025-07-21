@@ -31,6 +31,8 @@ mod http3;
 mod qpack;
 mod router;
 mod rbac;
+mod error;
+use error::ErrorKind;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。
@@ -170,7 +172,9 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                                 }
                             }
                             Ok(None) => break, // need more data
-                            Err(_) => {
+                            Err(e) => {
+                                let kind = e.to_error_kind();
+                                let _ = respond_error(&mut conn.stream, "HTTP/1.1", kind);
                                 ev.deregister(token)?;
                                 break;
                             }
@@ -425,6 +429,23 @@ fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: Stri
     stream.write_all(headers.as_bytes())?;
     stream.write_all(body.as_bytes())?;
     Ok(())
+}
+
+fn respond_error(stream: &mut TcpStream, version: &str, kind: ErrorKind) -> std::io::Result<()> {
+    let status = kind.status_code();
+    use std::io::Write;
+    let reason = match status {
+        400 => "Bad Request",
+        403 => "Forbidden",
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        504 => "Gateway Timeout",
+        _ => "Error",
+    };
+    let resp = format!(
+        "{version} {status} {reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(resp.as_bytes())
 }
 
 fn guess_mime(path: &Path) -> &'static str {
