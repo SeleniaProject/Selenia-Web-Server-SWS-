@@ -64,9 +64,9 @@
 - [x] `traceparent` 自動伝播
 
 ### 7. CLI & プロセスモデル
-- [ ] `start|stop|reload|benchmark|plugin|locale` 各サブコマンド実装
-- [ ] マスター / ワーカープロセス管理と graceful reload
-- [ ] Zero-Downtime Reload ワークフロー & メトリクス
+- [x] `start|stop|reload|benchmark|plugin|locale` 各サブコマンド実装
+- [x] マスター / ワーカープロセス管理と graceful reload
+- [x] Zero-Downtime Reload ワークフロー & メトリクス
 
 ### 8. デプロイ / CI & 品質ゲート
 - [ ] GitHub Actions マトリックス構築 (build, test, fuzz, bench)
