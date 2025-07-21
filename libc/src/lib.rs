@@ -289,9 +289,10 @@ extern "C" {
 // ---------- signals & process control ----------
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
 pub type pid_t = i32;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+// SIGTERM/SIGHUP are already defined for Linux earlier; non-Linux Unix platforms reuse same values.
+#[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
 pub const SIGTERM: c_int = 15;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
 pub const SIGHUP: c_int = 1;
 
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]

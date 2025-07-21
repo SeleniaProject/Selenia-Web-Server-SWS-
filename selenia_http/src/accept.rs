@@ -1,7 +1,5 @@
-//! Accept thread implementation with SO_REUSEPORT.
-//! Only compiled on Unix platforms; Windows uses IOCP with a single listener.
-
 #![cfg(unix)]
+//! Listener helper for SO_REUSEPORT + accept thread per CPU.
 
 use std::io::{Error, Result};
 use std::net::{TcpListener, TcpStream};

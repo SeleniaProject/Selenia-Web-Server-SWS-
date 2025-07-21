@@ -1,7 +1,7 @@
 //! Minimal HTTP/2 frame utilities – skeleton for future expansion.
 //! Only constants and simple builders are provided now (no full implementation).
 
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::net::TcpStream;
 
 use std::collections::{HashMap, VecDeque};
@@ -35,10 +35,11 @@ pub struct Connection {
     streams: HashMap<u32, Stream>,
     encoder: HpackEncoder,
     decoder: HpackDecoder,
+    fc: FlowControl,
 }
 
 impl Connection {
-    pub fn new() -> Self { Self { streams: HashMap::new(), encoder: HpackEncoder::new(), decoder: HpackDecoder::new() } }
+    pub fn new() -> Self { Self { streams: HashMap::new(), encoder: HpackEncoder::new(), decoder: HpackDecoder::new(), fc: FlowControl::new() } }
 
     /// Handle an inbound frame, updating stream state per RFC 7540 §5.1/§5.4
     pub fn on_frame(&mut self, fh: &FrameHeader) {
@@ -378,6 +379,7 @@ const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 #[repr(u8)]
 #[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameType {
     Data = 0x0,
     Headers = 0x1,

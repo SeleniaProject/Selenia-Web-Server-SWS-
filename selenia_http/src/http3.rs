@@ -214,10 +214,10 @@ impl ConnectionCtx {
 
     /// Encode headers into HTTP/3 HEADERS frame (type 0x1) returning payload.
     pub fn encode_headers(&mut self, headers:&[(String,String)]) -> Vec<u8> {
-        self.qenc.encode(headers)
+        self.qenc.encode_ref(headers)
     }
 
-    pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> { self.qdec.decode(payload) }
+    pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> { self.qdec.decode_ref(payload) }
 
     // ---------------- 0-RTT helpers ----------------
 
@@ -240,5 +240,4 @@ impl ConnectionCtx {
     }
 } 
 
-mod http3_packet;
-pub use http3_packet::build_initial_packet; 
+pub use crate::http3_packet::build_initial_packet; 

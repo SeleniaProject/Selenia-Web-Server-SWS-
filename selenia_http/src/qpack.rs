@@ -45,8 +45,10 @@ const STATIC_TABLE: &[(&str,&str)] = &[
     ("accept", "application/dns-message"),
 ];
 
+#[derive(Default, Clone, Copy)]
 pub struct Encoder;
 impl Encoder {
+    /// Static helper (no state) – encode header block.
     pub fn encode(headers: &[(String,String)]) -> Vec<u8> {
         let mut out = Vec::new();
         for (name,value) in headers {
@@ -70,10 +72,15 @@ impl Encoder {
         }
         out
     }
+
+    /// Instance method shim for convenience.
+    pub fn encode_ref(&mut self, headers:&[(String,String)]) -> Vec<u8> { Self::encode(headers) }
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct Decoder;
 impl Decoder {
+    /// Static helper – decode header block.
     pub fn decode(mut buf: &[u8]) -> Option<Vec<(String,String)>> {
         let mut headers = Vec::new();
         while !buf.is_empty() {
@@ -103,4 +110,6 @@ impl Decoder {
         }
         Some(headers)
     }
+
+    pub fn decode_ref(&mut self, buf:&[u8]) -> Option<Vec<(String,String)>> { Self::decode(buf) }
 } 
