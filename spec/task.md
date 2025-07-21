@@ -56,7 +56,7 @@
 - [x] 構造化 JSON ロガー (動的レベルリロード対応)
 - [x] Prometheus `/metrics` エクスポータ
 - [x] ヒストグラム / サマリーメトリクス
-- [ ] OpenTelemetry Trace エクスポータ (OTLP gRPC)
+- [x] OpenTelemetry Trace エクスポータ (OTLP gRPC)
 - [x] `traceparent` 自動伝播
 
 ## 7. CLI & プロセスモデル
