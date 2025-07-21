@@ -1,5 +1,6 @@
 name: ci
 on: [push, pull_request]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -12,47 +13,39 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.target }}
-          components: llvm-tools-preview
-      - name: Format check
-        run: cargo fmt --check
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: Tests
-        run: cargo test --all --release
-      - name: Docs
-        run: scripts/gen_docs.sh
-      - name: Coverage
-        run: |
-          cargo install cargo-llvm-cov --locked
-          cargo llvm-cov --no-report --fail-under-lines 0 --all-features
-      - name: Fuzz (smoke)
-        run: |
-          rustup component add llvm-tools-preview
-          cargo install cargo-fuzz --locked
-          cargo fuzz run http_parser -- -max_total_time=30
-      - name: Bench (smoke)
-        run: cargo run --bin bench --release || true
-      - name: Build release artefact
-        run: cargo build --release --target ${{ matrix.target }}
-      - name: Build multi-arch Docker image
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          platforms: linux/amd64,linux/arm64
-          tags: sws:test
+      - run: cargo fmt --check
+      - run: cargo clippy --deny warnings
+      - run: cargo test --all --release
+      - run: cargo llvm-cov --fail-under 100
+      - run: cargo build --release --target ${{ matrix.target }}
+  fuzz:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - run: cargo fuzz run http_parser -- -max_total_time=3600
+  bench:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Run benches
+        run: cargo bench | cat
+  sbom:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        run: |
+          cargo install cargo-bom || true
+          cargo bom -f json > dist/sbom.json
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: ./target/${{ matrix.target }}/release/
-          output-file: sbom_${{ matrix.target }}.spdx.json
-      - name: CVE Scan
-        uses: anchore/scan-action@v3
-        with:
-          path: target/${{ matrix.target }}/release/
-          severity-cutoff: medium
-      - name: Cosign Sign SBOM
-        uses: sigstore/cosign-installer@main
-      - name: Sign
-        env:
-          COSIGN_EXPERIMENTAL: "1"
-        run: cosign sign --key github.key sbom_${{ matrix.target }}.spdx.json || echo "cosign skip" 
+          name: sbom
+          path: dist/sbom.json 

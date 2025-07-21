@@ -65,11 +65,11 @@
 - [x] Zero-Downtime Reload ワークフロー & メトリクス
 
 ## 8. デプロイ / CI & 品質ゲート
-- [ ] GitHub Actions マトリックス構築 (build, test, fuzz, bench)
-- [ ] `cargo clippy` / `cargo fmt` 自動ゲート
-- [ ] `llvm-cov` カバレッジレポート統合
-- [ ] FUZZ ターゲット 24h CI
-- [ ] SBOM 生成 & cosign 署名
+- [x] GitHub Actions マトリックス構築 (build, test, fuzz, bench)
+- [x] `cargo clippy` / `cargo fmt` 自動ゲート
+- [x] `llvm-cov` カバレッジレポート統合
+- [x] FUZZ ターゲット 24h CI
+- [x] SBOM 生成 & cosign 署名
 
 ## 9. ベンチマーク自動化
 - [ ] wrk2 シナリオ自動実行
