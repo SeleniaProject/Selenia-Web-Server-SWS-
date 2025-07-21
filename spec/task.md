@@ -1,103 +1,83 @@
-# Selenia Web Server – Task Board
+# Selenia Web Server – Pending Task Board
 
-> このドキュメントは `spec/SPECIFICATION.md` と `spec/DESIGN.md` に基づき、実装すべき全項目を洗い出した開発タスク一覧である。チェック済み (`[x]`) は現時点で既に実装・コミットされている部分を示す。未チェック (`[ ]`) は今後実装が必要な項目を示す。タスク完了後はプルリクエストにて本ファイルを更新すること。
+> 現在のコードベースで未実装または不完全と判定されたタスク一覧。完了した項目は `[x]` に変更して進捗を更新してください。
 
 ---
 
 ## 1. Core / OS 抽象層
-- [x] Poller 抽象トレイト実装 (`epoll`, `kqueue`, `IOCP`, `Stub`)
-- [x] Non-blocking EventLoop (`event_loop.rs`)
-- [x] Multi-poller auto-selection & runtime fallback
-- [x] Async DNS キャッシュ (skiplist + TTL eviction)
-- [x] Hot-Reload マスター/ワーカープロセス制御
+- [x] kqueue ポーラ実装 (macOS / *BSD)
+- [ ] IOCP ポーラ実装 (Windows)
+- [ ] timerfd / EVFILT_TIMER / WaitableTimer を統一するクロスプラットフォームタイマ抽象
+- [ ] NUMA ピン止め対応マルチスレッド EventLoop への統合
+- [ ] Accept スレッド & SO_REUSEPORT 分散アルゴリズム
+- [ ] Lock-Free Skiplist を用いた非同期 DNS キャッシュ
 
-## 2. Crypto Subsystem
-- [x] ChaCha20 (RFC8439) 実装
-- [x] Poly1305 (RFC8439) 実装
-- [x] SHA-256 / HMAC / HKDF
-- [x] AES-GCM (software fallback + AES-NI)
-- [x] TLS 1.3 握手 & レコードレイヤ
-- [x] OCSP Stapling / HSTS 自動付与
+## 2. HTTP スタック
+### 2.1 HTTP/1.x
+- [ ] ボディパーサ (chunked, Content-Length)
+- [ ] エラーハンドリング & ステータスマッピング
+- [ ] Keep-Alive 接続プール自動チューニング
+- [ ] `cargo fuzz` 対応 HTTP/1 パーザハーネス
+- [ ] wrk2 ベンチシナリオ統合
 
-## 3. HTTP Stack
-### 3.1 HTTP/1.x
-- [x] 手書き 0-alloc パーサ (`parser.rs`)
-- [x] 静的ファイル送出 (sendfile / TransmitFile)
-- [x] Keep-Alive connection pool auto-tune
+### 2.2 HTTP/2
+- [ ] フレームパーサ / シリアライザ完全実装
+- [ ] ストリーム状態遷移管理 (HEADERS, DATA, RST など)
+- [ ] SETTINGS / ACK 交渉処理
+- [ ] ウィンドウフロー制御の本実装
+- [ ] HPACK とストリームの結線
+- [ ] GOAWAY / graceful shutdown 対応
 
-### 3.2 HTTP/2
-- [x] HPACK 圧縮/展開完全実装
-- [x] ストリーム優先度ツリー & フロー制御
+### 2.3 HTTP/3 (QUIC)
+- [ ] QUIC Transport ハンドシェイク & パケット化
+- [ ] ストリームスケジューラ & フロー制御
+- [ ] QPACK エンコーダ / デコーダ統合
+- [ ] 0-RTT / Retry / Datagram Extension 対応
 
-### 3.3 HTTP/3 (QUIC)
-- [x] QUIC Transport ハンドシェイク
-- [x] QPACK 圧縮/展開
-- [x] 0-RTT / Retry / Datagram Extension
+## 3. TLS / Crypto
+- [ ] TLS 1.3 ハンドシェイクステートマシン
+- [ ] レコードレイヤ (ChaCha20-Poly1305, AES-GCM) 実装
+- [ ] セッションチケット & 再開機構
+- [ ] OCSP Stapling 自動化
 
-### 3.4 共通
-- [x] Range / Conditional / ETag 処理
-- [x] Gzip / Deflate 圧縮
-- [x] Brotli / Zstd 実装完了
+## 4. ルーティング / セキュリティ
+- [ ] Radix ツリー Router (rewrite, ワイルドカード対応)
+- [ ] JWT ベース RBAC ミドルウェア
+- [ ] WAF ルールエンジン実装
+- [ ] eBPF インラインルール評価器
+- [ ] トークンバケット Rate Limit ミドルウェア
 
-## 4. Plugin & Sandbox
-- [x] C ABI Plugin Loader (`cdylib`)
-- [x] WASM Edge Function (WASI Snapshot)
-- [x] Capability / seccomp 制限
+## 5. プラグイン & サンドボックス
+- [ ] C ABI プラグインローダ (`cdylib`) バージョン検査付き
+- [ ] WASM Edge Function サンドボックス (WASI Snapshot)
+- [ ] Capability および seccomp 制限統合
 
-## 5. Routing / RBAC / WAF
-- [x] Radix ツリー Router (rewrite, redirect, proxy)
-- [x] YAML ベース設定ローダ (`config.rs`)
-- [x] locale / i18n 骨格 (`locale.rs`)
-- [x] JWT RBAC ミドルウェア
-- [x] WAF Skeleton (`waf.rs`)
-- [x] eBPF inline rule evaluator
-- [x] Token bucket Rate-Limit
+## 6. 観測性
+- [ ] 構造化 JSON ロガー (動的レベルリロード対応)
+- [ ] Prometheus `/metrics` エクスポータ
+- [ ] ヒストグラム / サマリーメトリクス
+- [ ] OpenTelemetry Trace エクスポータ (OTLP gRPC)
+- [ ] `traceparent` 自動伝播
 
-## 6. Observability
-- [x] 構造化 JSON ロガー (`logger.rs`)
-- [x] Log rotation & level reload via SIGHUP
-- [x] Metrics カウンタ / ヒストグラム (`metrics.rs`)
-- [x] Prometheus `/metrics` HTTP エンドポイント
-- [x] OpenTelemetry Trace exporter (OTLP gRPC)
+## 7. CLI & プロセスモデル
+- [ ] `start|stop|reload|benchmark|plugin|locale` 各サブコマンド実装
+- [ ] マスター / ワーカープロセス管理と graceful reload
+- [ ] Zero-Downtime Reload ワークフロー & メトリクス
 
-## 7. Operations / CLI
-- [x] ベンチマークツール (`tools/bench.rs`)
-- [x] `sws start|stop|reload|benchmark|plugin|locale` CLI サブコマンド実装
-- [x] `sws plugin install/validate` flow
-- [x] Zero-Downtime Reload ワークフロー
+## 8. デプロイ / CI & 品質ゲート
+- [ ] GitHub Actions マトリックス構築 (build, test, fuzz, bench)
+- [ ] `cargo clippy` / `cargo fmt` 自動ゲート
+- [ ] `llvm-cov` カバレッジレポート統合
+- [ ] FUZZ ターゲット 24h CI
+- [ ] SBOM 生成 & cosign 署名
 
-## 8. CI/CD & Quality Gate
-- [x] GitHub Actions Matrix (build, test, fuzz, bench)
-- [x] `cargo llvm-cov` 100% 取得
-- [x] Fuzz ハーネス (`cargo fuzz`) for parser, HPACK, QUIC
-- [x] SBOM 自動生成 & cosign 署名
-
-## 9. Security & Hardening
-- [x] memfd_secret TLS key loader
-- [x] Live-Patch 差分適用エンジン
-- [x] seccomp-BPF allowlist 自動生成
-- [x] supply-chain SBOM / CVE bot integration
-
-## 10. Deployment / Packaging
-- [x] Single static binary (`cargo strip`, `upx`)
-- [x] Multi-arch Docker build (`scratch` 6 MB)
-- [x] Helm / K8s Manifests with readiness & liveness probes
-
-## 11. Performance Benchmarks
-- [x] wrk2 シナリオ (HTTP/1) 260 Gbps 達成
-- [x] h2load シナリオ (HTTP/2) 220 Gbps 達成
-- [x] quicperf シナリオ (HTTP/3) 240 Gbps 達成
-
-## 12. Documentation & Spec Compliance
-- [x] SPECIFICATION.md 完成
-- [x] DESIGN.md 完成
-- [x] Rustdoc 100% 公開 API カバレッジ
-- [x] man page / HTML ドキュメント自動生成
+## 9. ベンチマーク自動化
+- [ ] wrk2 シナリオ自動実行
+- [ ] h2load シナリオ自動実行
+- [ ] quicperf シナリオ自動実行
 
 ---
 
 ### Legend
 - ✅ / `[x]` : 実装完了・テスト済み
-- ⬜️ / `[ ]` : 未実装 / 進行中
-
-進捗更新の際はコミットメッセージに `task: update` を含め、本ファイルを忘れずに編集して下さい。 
+- ⬜️ / `[ ]` : 未実装 / 進行中 
