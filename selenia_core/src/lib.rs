@@ -14,3 +14,4 @@ pub mod ebpf;
 pub mod ratelimit; 
 pub mod otel; 
 pub mod capability; 
+pub mod traceparent; 

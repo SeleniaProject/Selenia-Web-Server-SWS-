@@ -57,7 +57,7 @@
 - [x] Prometheus `/metrics` エクスポータ
 - [x] ヒストグラム / サマリーメトリクス
 - [ ] OpenTelemetry Trace エクスポータ (OTLP gRPC)
-- [ ] `traceparent` 自動伝播
+- [x] `traceparent` 自動伝播
 
 ## 7. CLI & プロセスモデル
 - [ ] `start|stop|reload|benchmark|plugin|locale` 各サブコマンド実装

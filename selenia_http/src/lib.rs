@@ -15,6 +15,7 @@ use selenia_core::signals;
 use selenia_core::waf;
 use selenia_core::crypto::tls13;
 use selenia_core::crypto::sha256::sha256_digest;
+use selenia_core::traceparent::{TraceContext};
 
 #[cfg(unix)]
 use selenia_core::os::{EventLoop, Interest};
@@ -277,8 +278,16 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
     let start_sys = std::time::SystemTime::now();
     // original start Instant for latency below
     let start = std::time::Instant::now();
+
+    // --- Trace Context ---
+    let tp_ctx = headers.iter()
+        .find(|(k,_)| k.eq_ignore_ascii_case("traceparent"))
+        .and_then(|(_,v)| TraceContext::parse(*v))
+        .unwrap_or_else(|| TraceContext::generate());
+    let tp_header_line = format!("traceparent: {}\r\n", tp_ctx.header());
+
     if !waf::evaluate(method, path, &headers.iter().map(|(a,b)|(a.to_string(),b.to_string())).collect::<Vec<_>>()) {
-        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg)?;
+        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg, &tp_header_line)?;
         let latency = start.elapsed();
         selenia_core::metrics::observe_latency(latency);
         let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
@@ -289,7 +298,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
     }
 
     if method != "GET" && method != "HEAD" {
-        respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive, cfg)?;
+        respond_simple(stream, version, 405, translate(locale, "http.method_not_allowed"), keep_alive, cfg, &tp_header_line)?;
         let latency = start.elapsed();
         selenia_core::metrics::observe_latency(latency);
         let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
@@ -301,7 +310,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
     // RBAC check
     let auth = headers.iter().find(|(k,_)| k.eq_ignore_ascii_case("Authorization")).map(|(_,v)| *v);
     if !rbac::validate(path, auth) {
-        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg)?;
+        respond_simple(stream, version, 403, "Forbidden".into(), keep_alive, cfg, &tp_header_line)?;
         let latency = start.elapsed();
         selenia_core::metrics::observe_latency(latency);
         let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
@@ -316,6 +325,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         metrics::inc_requests();
         let body = metrics::render();
         let mut headers = format!("{} 200 OK\r\nContent-Type: text/plain; version=0\r\nContent-Length: {}\r\n", version, body.len());
+        headers.push_str(&tp_header_line);
         if keep_alive {
             headers.push_str("Connection: keep-alive\r\n");
             headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
@@ -373,7 +383,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         Ok(m) if m.is_file() => m,
         _ => {
             metrics::inc_requests(); metrics::inc_errors();
-            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive, cfg)?;
+            respond_simple(stream, version, 404, translate(locale, "http.not_found"), keep_alive, cfg, &tp_header_line)?;
             log_info!("{} - \"{} {}\" 404 0", peer, method, path);
             let latency = start.elapsed();
             selenia_core::metrics::observe_latency(latency);
@@ -394,7 +404,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
     // Conditional If-None-Match
     for (k,v) in headers {
         if k.eq_ignore_ascii_case("If-None-Match") && *v == etag_str {
-            respond_simple(stream, version, 304, String::new(), keep_alive, cfg)?;
+            respond_simple(stream, version, 304, String::new(), keep_alive, cfg, &tp_header_line)?;
             let latency = start.elapsed();
             selenia_core::metrics::observe_latency(latency);
             let end_ns = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
@@ -461,6 +471,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             headers_txt.push_str(&format!("ETag: {}\r\n", etag_str));
             headers_txt.push_str(&format!("Content-Length: {}\r\n", body.len()));
             if accept_gzip { headers_txt.push_str("Content-Encoding: gzip\r\n"); }
+            headers_txt.push_str(&tp_header_line);
             headers_txt.push_str("\r\n");
             stream.write_all(headers_txt.as_bytes())?;
             if method != "HEAD" {
@@ -479,7 +490,7 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
     Ok(())
 }
 
-fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool, cfg:&ServerConfig) -> std::io::Result<()> {
+fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: String, keep_alive: bool, cfg:&ServerConfig, tp_header:&str) -> std::io::Result<()> {
     let mut headers = format!(
         "{} {} \r\nContent-Length: {}\r\nContent-Type: text/plain; charset=utf-8\r\n",
         version,
@@ -495,6 +506,7 @@ fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: Stri
     } else {
         headers.push_str("Connection: close\r\n");
     }
+    headers.push_str(tp_header);
     headers.push_str("\r\n");
     stream.write_all(headers.as_bytes())?;
     stream.write_all(body.as_bytes())?;
