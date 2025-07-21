@@ -50,7 +50,7 @@
 ## 5. プラグイン & サンドボックス
 - [x] C ABI プラグインローダ (`cdylib`) バージョン検査付き
 - [x] WASM Edge Function サンドボックス (WASI Snapshot)
-- [ ] Capability および seccomp 制限統合
+- [x] Capability および seccomp 制限統合
 
 ## 6. 観測性
 - [x] 構造化 JSON ロガー (動的レベルリロード対応)

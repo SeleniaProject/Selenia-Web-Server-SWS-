@@ -74,6 +74,29 @@ pub fn install() -> Result<(), String> {
 #[cfg(target_os = "linux")]
 pub fn generate_and_install(names: &[&str]) -> Result<(), String> {
     use libc::*;
+
+    // Provide fallback definitions when not available in the local minimal libc shim (x86_64 values).
+    #[allow(non_upper_case_globals)]
+    const SYS_accept: c_long = if cfg!(target_os="linux") { 43 } else { 43 };
+    #[allow(non_upper_case_globals)]
+    const SYS_accept4: c_long = 288;
+    const SYS_socket: c_long = 41;
+    const SYS_bind: c_long = 49;
+    const SYS_listen: c_long = 50;
+    const SYS_setsockopt: c_long = 54;
+    const SYS_recvfrom: c_long = 45;
+    const SYS_sendto: c_long = 44;
+    const SYS_recvmsg: c_long = 47;
+    const SYS_sendmsg: c_long = 46;
+    const SYS_getrandom: c_long = 318;
+    const SYS_fcntl: c_long = 72;
+    const SYS_mmap: c_long = 9;
+    const SYS_munmap: c_long = 11;
+    const SYS_brk: c_long = 12;
+    const SYS_rt_sigreturn: c_long = 15;
+    const SYS_rt_sigaction: c_long = 13;
+    const SYS_sigaltstack: c_long = 131;
+
     let mut numbers = Vec::<u32>::new();
     for &n in names {
         let num = match n {
@@ -88,6 +111,24 @@ pub fn generate_and_install(names: &[&str]) -> Result<(), String> {
             "restart_syscall" => SYS_restart_syscall,
             "exit" => SYS_exit,
             "exit_group" => SYS_exit_group,
+            "accept" => SYS_accept,
+            "accept4" => SYS_accept4,
+            "socket" => SYS_socket,
+            "bind" => SYS_bind,
+            "listen" => SYS_listen,
+            "setsockopt" => SYS_setsockopt,
+            "recvfrom" => SYS_recvfrom,
+            "sendto" => SYS_sendto,
+            "recvmsg" => SYS_recvmsg,
+            "sendmsg" => SYS_sendmsg,
+            "getrandom" => SYS_getrandom,
+            "fcntl" => SYS_fcntl,
+            "mmap" => SYS_mmap,
+            "munmap" => SYS_munmap,
+            "brk" => SYS_brk,
+            "rt_sigreturn" => SYS_rt_sigreturn,
+            "rt_sigaction" => SYS_rt_sigaction,
+            "sigaltstack" => SYS_sigaltstack,
             _ => return Err(format!("unknown syscall '{}'", n)),
         } as u32;
         numbers.push(num);

@@ -84,10 +84,14 @@ pub fn load_plugin<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
             p
         };
 
-        let _ = init_ptr; // suppress warning for now
+        // Cast init_ptr (plugin unload entry) back to function pointer for Drop.
+        let cleanup: PluginInit = std::mem::transmute(init_ptr);
 
-        // Store handle without keeping function pointer.
-        plugins().write().unwrap().insert(path.as_ref().to_string_lossy().into_owned(), PluginHandle{name:path.as_ref().to_string_lossy().into_owned(), lib:handle, init});
+        // Store handle so it stays loaded for the process lifetime.
+        plugins().write().unwrap().insert(
+            path.as_ref().to_string_lossy().into_owned(),
+            PluginHandle { name: path.as_ref().to_string_lossy().into_owned(), lib: handle, init: cleanup }
+        );
     }
     Ok(())
 }

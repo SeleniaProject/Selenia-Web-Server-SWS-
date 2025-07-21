@@ -11,7 +11,8 @@
 //! external PKI module should supply the certificate bytes and private-key
 //! sign/decrypt operations.
 
-use super::{hkdf::hkdf_extract, hkdf::hkdf_expand_label, sha256::sha256_digest, aes_gcm, rand::fill_random};
+use super::{hkdf::hkdf_extract, hkdf::hkdf_expand_label, sha256::sha256_digest, aes_gcm};
+use super::rand::fill_random;
 use core::convert::TryInto;
 use std::collections::HashMap;
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
@@ -25,6 +26,7 @@ const LABEL_IV: &[u8] = b"iv";
 pub enum TlsError { Unsupported, DecodeError }
 
 /// Holds handshake secrets and record cipher keys.
+#[derive(Clone)]
 pub struct Tls13State {
     client_write_key: [u8; 16],
     server_write_key: [u8; 16],
@@ -62,7 +64,7 @@ impl TicketStore {
     /// Issue a new ticket for the given connection state, returns wire bytes.
     pub fn issue(&mut self, state: &Tls13State, lifetime: Duration) -> Vec<u8> {
         let mut ticket = [0u8; 32];
-        let _ = rand::fill_random(&mut ticket);
+        let _ = fill_random(&mut ticket);
         let expiry = now_ms() + lifetime.as_millis() as u64;
         self.tickets.insert(ticket.to_vec(), (state.clone(), expiry));
         ticket.to_vec()

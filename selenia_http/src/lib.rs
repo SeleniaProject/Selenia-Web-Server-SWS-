@@ -2,6 +2,7 @@ use selenia_core::config::ServerConfig;
 use selenia_core::locale::translate;
 use std::fs;
 use std::io::{Read, Write};
+use std::io;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
@@ -18,6 +19,8 @@ use selenia_core::crypto::sha256::sha256_digest;
 #[cfg(unix)]
 use selenia_core::os::{EventLoop, Interest};
 #[cfg(unix)]
+use std::collections::HashMap;
+#[cfg(unix)]
 mod accept;
 #[cfg(unix)]
 use accept::{create_reuseport_listener, spawn_accept_thread};
@@ -33,6 +36,8 @@ mod router;
 mod rbac;
 mod error;
 use error::ErrorKind;
+mod http3_packet;
+pub use http3_packet::build_retry as build_retry_packet;
 
 #[cfg(unix)]
 /// 同期イベントループベース (epoll/kqueue) HTTP/1.0 サーバ。
@@ -53,6 +58,24 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         lst.set_nonblocking(true)?; // extra safety
         log_info!("SWS listening on http://{} (reuseport)", addr);
         spawn_accept_thread(lst, tx.clone());
+    }
+
+    // After listeners are bound we no longer need CAP_NET_BIND_SERVICE, drop it and enable seccomp sandbox.
+    #[cfg(target_os = "linux")]
+    {
+        if let Err(e) = selenia_core::capability::drop_net_bind() {
+            log_error!("Capability drop failed: {}", e);
+        }
+        // Install a dedicated seccomp filter tailored to the web server syscalls.
+        const SYSCALLS: &[&str] = &[
+            "read","write","close","futex","epoll_wait","epoll_ctl","epoll_create1",
+            "clock_nanosleep","restart_syscall","exit","exit_group","accept","accept4",
+            "socket","bind","listen","setsockopt","recvfrom","sendto","recvmsg","sendmsg",
+            "getrandom","fcntl","mmap","munmap","brk","rt_sigreturn","rt_sigaction","sigaltstack"
+        ];
+        if let Err(e) = selenia_core::seccomp::generate_and_install(SYSCALLS) {
+            log_error!("seccomp install failed: {}", e);
+        }
     }
 
     drop(tx); // close senders in this thread
@@ -106,7 +129,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                             continue;
                         }
                         Ok(n) => conn.buf.extend_from_slice(&tmp[..n]),
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
                         Err(e) => {
                             log_error!("[READ ERROR] {}", e);
                             ev.deregister(token)?;
