@@ -211,3 +211,6 @@ impl ConnectionCtx {
 
     pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> { self.qdec.decode(payload) }
 } 
+
+mod http3_packet;
+pub use http3_packet::build_initial_packet; 
