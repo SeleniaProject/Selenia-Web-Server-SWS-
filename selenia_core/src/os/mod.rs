@@ -35,12 +35,18 @@ pub mod interest;
 pub use interest::{Interest, Token, Event};
 pub mod poller;
 
-/// 汎用イベントソース識別子
-pub type Token = usize;
+// The canonical `Token` alias as exported from `interest.rs` is re-exported
+// above with `pub use interest::Token;` to provide a single authoritative
+// definition across the crate.  A duplicated definition here would create
+// two distinct types that cannot be compared and would quickly lead to
+// confusing compilation errors.  Therefore the legacy alias has been
+// removed.
 
-/// 共通エラー型
+/// Portable error type for the OS abstraction layer.
 #[derive(Debug)]
 pub enum OsError {
+    /// Raw OS error number (positive errno / Win32 error code).
     Sys(i32),
+    /// Operation is not supported on the current platform.
     Unsupported,
 } 

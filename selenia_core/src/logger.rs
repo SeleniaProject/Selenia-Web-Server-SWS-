@@ -44,7 +44,12 @@ pub fn set_level(level: LogLevel) { LOG_LEVEL.store(level as usize, Ordering::Re
 pub fn rotate(path:&str) {
     use std::fs;
     // close current and rename
-    unsafe if let Some(m) = &FILE { let _ = m.lock().unwrap(); } // drop after scope
+    unsafe {
+        if let Some(m) = &FILE {
+            // Acquire the lock to flush and unlock the current log file before rotation.
+            let _ = m.lock().unwrap();
+        }
+    } // FILE mutex guard dropped here before rename
     let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     let rotated = format!("{}.{}", path, ts);
     let _ = fs::rename(path, &rotated);

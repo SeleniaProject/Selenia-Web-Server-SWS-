@@ -6,10 +6,7 @@ members = [
     "selenia_server",
 ]
 
-[[bin]]
-name = "bench"
-path = "tools/bench.rs"
-
-[[bin]]
-name = "bench_scenarios"
-path = "tools/bench_scenarios.rs" 
+# Moved standalone benchmarking binaries into dedicated crate `tools/`.
+# Having `[[bin]]` sections in a virtual manifest is disallowed as of Cargo 1.74,
+# therefore we remove them here.  The binaries are now defined by local manifests
+# under `tools/` and picked up automatically by the workspace. 
