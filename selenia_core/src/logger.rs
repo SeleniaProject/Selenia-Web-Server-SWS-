@@ -57,7 +57,7 @@ pub fn rotate(path:&str) {
 }
 
 pub fn log(level: LogLevel, args: fmt::Arguments<'_>) {
-    if level as usize < LOG_LEVEL.load(Ordering::Relaxed) { return; }
+    if (level as usize) < LOG_LEVEL.load(Ordering::Relaxed) { return; }
     let _guard = LOGGER_LOCK.lock().unwrap();
     let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     let millis = ts.as_secs()*1000 + ts.subsec_millis() as u64;

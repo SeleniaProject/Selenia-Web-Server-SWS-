@@ -65,7 +65,47 @@ fn extract_roles(token:&str)->Vec<String>{
 }
 
 fn base64_url_decode(s:&str)->Vec<u8>{
-    let mut b=s.replace('-','+').replace('_','/');
-    while b.len()%4!=0 { b.push('='); }
-    base64::decode(b).unwrap_or_default()
+    // Minimal Base64(URL-safe) decoder without external crates.
+    let mut b = s.replace('-', "+").replace('_', "/");
+    while b.len() % 4 != 0 { b.push('='); }
+    decode_base64_simple(&b)
+}
+
+/// Very small base64 decoder supporting standard & URL-safe alphabet. No padding validation.
+fn decode_base64_simple(inp: &str) -> Vec<u8> {
+    const INVALID: u8 = 0xFF;
+    // Build reverse lookup table once.
+    fn table() -> [u8; 256] {
+        let mut t = [INVALID; 256];
+        let mut i = 0u8;
+        for c in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".iter() {
+            t[*c as usize] = i; i += 1;
+        }
+        t
+    }
+    static T: [u8; 256] = table();
+
+    let bytes = inp.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() * 3 / 4);
+    let mut chunk = [0u8;4];
+    let mut idx = 0;
+    for &b in bytes {
+        if b == b'=' { break; }
+        let val = T[b as usize];
+        if val == INVALID { continue; }
+        chunk[idx] = val; idx +=1;
+        if idx==4 {
+            out.push((chunk[0]<<2) | (chunk[1]>>4));
+            out.push((chunk[1]<<4) | (chunk[2]>>2));
+            out.push((chunk[2]<<6) | chunk[3]);
+            idx=0;
+        }
+    }
+    if idx==3 {
+        out.push((chunk[0]<<2) | (chunk[1]>>4));
+        out.push((chunk[1]<<4) | (chunk[2]>>2));
+    } else if idx==2 {
+        out.push((chunk[0]<<2) | (chunk[1]>>4));
+    }
+    out
 } 

@@ -1,5 +1,8 @@
+# Development builds default to the glibc toolchain to avoid requiring the
+# precompiled MUSL std libraries on every contributor's environment.  Release
+# artifacts are still built for MUSL via CI workflow.
 [build]
-target = "x86_64-unknown-linux-musl"
+target = "x86_64-unknown-linux-gnu"
 
 [target.x86_64-unknown-linux-musl]
 linker = "musl-gcc"
