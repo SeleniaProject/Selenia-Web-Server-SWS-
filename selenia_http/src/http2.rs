@@ -101,6 +101,18 @@ impl Connection {
     pub fn decode_headers(&mut self, payload:&[u8]) -> Option<Vec<(String,String)>> {
         self.decoder.decode(payload).ok()
     }
+
+    /// Build a GOAWAY frame for graceful shutdown.
+    pub fn build_goaway(last_stream_id:u32, error_code:u32) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(8);
+        payload.extend_from_slice(&(last_stream_id & 0x7F_FF_FF_FF).to_be_bytes());
+        payload.extend_from_slice(&error_code.to_be_bytes());
+        let mut out = Vec::with_capacity(9+8);
+        let fh = FrameHeader { length:8, type_:FrameType::GoAway, flags:0, stream_id:0 };
+        fh.serialize(&mut out);
+        out.extend_from_slice(&payload);
+        out
+    }
 }
 
 // -------------------------- Priority Tree ------------------------------

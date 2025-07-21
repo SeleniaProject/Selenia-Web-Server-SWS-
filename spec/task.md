@@ -26,7 +26,7 @@
 - [x] SETTINGS / ACK 交渉処理
 - [x] ウィンドウフロー制御の本実装
 - [x] HPACK とストリームの結線
-- [ ] GOAWAY / graceful shutdown 対応
+- [x] GOAWAY / graceful shutdown 対応
 
 ### 2.3 HTTP/3 (QUIC)
 - [ ] QUIC Transport ハンドシェイク & パケット化
