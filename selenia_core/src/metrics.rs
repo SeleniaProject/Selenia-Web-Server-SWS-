@@ -25,9 +25,17 @@ const LAT_BUCKETS: [u64; 10] = [
 ];
 
 // Atomic counters per bucket.
-static LAT_COUNTS: [AtomicU64; LAT_BUCKETS.len()] = [AtomicU64::new(0); LAT_BUCKETS.len()];
+static LAT_COUNTS: [AtomicU64; LAT_BUCKETS.len()] = [
+    AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0),
+    AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)
+];
 static LAT_SUM_US: AtomicU64 = AtomicU64::new(0);
 static LAT_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+// Reload state gauge (0=Idle,1=ReloadRequest,2=Forking,3=Promote,4=Drain)
+static RELOAD_STATE: AtomicU64 = AtomicU64::new(0);
+
+pub fn set_reload_state(v: u64) { RELOAD_STATE.store(v, Ordering::Relaxed); }
 
 /// Observe request latency in `Duration`.
 pub fn observe_latency(d: Duration) {
@@ -90,6 +98,8 @@ pub fn render() -> String {
     }
     out.push_str(&format!("sws_http_request_duration_seconds_sum {}\n", sum_sec));
     out.push_str(&format!("sws_http_request_duration_seconds_count {}\n", total));
+
+    out.push_str(&format!("# TYPE sws_reload_state gauge\nsws_reload_state {}\n", RELOAD_STATE.load(Ordering::Relaxed)));
 
     out
 } 

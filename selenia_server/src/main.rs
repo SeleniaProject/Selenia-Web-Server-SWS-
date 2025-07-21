@@ -173,6 +173,7 @@ fn main() {
 
         let worker_count = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
 
+        selenia_core::metrics::set_reload_state(0); // Idle
         log_info!("Master PID {} starting {} workers", std::process::id(), worker_count);
         let mut workers = unix_master::spawn_workers(worker_count, cfg_path);
 
@@ -182,15 +183,21 @@ fn main() {
                 break;
             }
             if signals::take_reload_request() {
+                selenia_core::metrics::set_reload_state(1); // ReloadRequest
                 log_info!("Hot-reload requested – spawning new workers");
+                selenia_core::metrics::set_reload_state(2); // Forking
                 let new_workers = unix_master::spawn_workers(worker_count, cfg_path);
                 unix_master::signal_all(&workers, SIGTERM); // graceful stop old
                 workers = new_workers;
+                selenia_core::metrics::set_reload_state(3); // Promote
             }
 
             // Reap dead workers.
             while let Some(dead) = unix_master::wait_child() {
                 workers.retain(|&pid| pid != dead);
+                if workers.is_empty() {
+                    selenia_core::metrics::set_reload_state(0); // Back to Idle after drain
+                }
             }
 
             std::thread::sleep(std::time::Duration::from_millis(500));
