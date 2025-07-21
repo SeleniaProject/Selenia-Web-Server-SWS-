@@ -41,6 +41,9 @@ mod event_loop_stub;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "windows")))]
 pub use event_loop_stub::EventLoop;
 
+mod event_loop_mt;
+pub use event_loop_mt::MultiEventLoop;
+
 pub mod interest;
 pub use interest::{Interest, Token, Event};
 pub mod poller;

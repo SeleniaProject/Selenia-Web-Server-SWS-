@@ -8,7 +8,7 @@
 - [x] kqueue ポーラ実装 (macOS / *BSD)
 - [x] IOCP ポーラ実装 (Windows)
 - [x] timerfd / EVFILT_TIMER / WaitableTimer を統一するクロスプラットフォームタイマ抽象
-- [ ] NUMA ピン止め対応マルチスレッド EventLoop への統合
+- [x] NUMA ピン止め対応マルチスレッド EventLoop への統合
 - [ ] Accept スレッド & SO_REUSEPORT 分散アルゴリズム
 - [ ] Lock-Free Skiplist を用いた非同期 DNS キャッシュ
 
