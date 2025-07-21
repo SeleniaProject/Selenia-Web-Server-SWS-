@@ -6,6 +6,8 @@
 
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
+use std::thread;
+use std::time::SystemTime;
 
 static OCSP_CACHE: RwLock<Option<OcspStaple>> = RwLock::new(None);
 
@@ -30,4 +32,17 @@ pub fn load_ocsp_response(path: &str, valid_secs: u64) -> std::io::Result<()> {
 /// Get current OCSP response, if valid.
 pub fn get_staple() -> Option<Vec<u8>> {
     OCSP_CACHE.read().unwrap().as_ref().and_then(|s| if s.is_valid(){Some(s.der.clone())}else{None})
+}
+
+/// Periodically reload the OCSP response from `path` every `refresh_secs`.
+/// Spawns a background thread; in failure it logs and retains previous staple.
+pub fn spawn_auto_refresh(path: String, refresh_secs: u64, valid_secs: u64) {
+    thread::spawn(move || {
+        loop {
+            if let Err(e) = load_ocsp_response(&path, valid_secs) {
+                eprintln!("[OCSP] reload failed: {}", e);
+            }
+            thread::sleep(Duration::from_secs(refresh_secs));
+        }
+    });
 } 
