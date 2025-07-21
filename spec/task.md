@@ -33,10 +33,10 @@
 - [x] GOAWAY / graceful shutdown 対応
 
 #### 2.3 HTTP/3 (QUIC)
-- [ ] QUIC Transport ハンドシェイク & パケット化
-- [ ] ストリームスケジューラ & フロー制御
-- [ ] QPACK エンコーダ / デコーダ統合
-- [ ] 0-RTT / Retry / Datagram Extension 対応
+- [x] QUIC Transport ハンドシェイク & パケット化
+- [x] ストリームスケジューラ & フロー制御
+- [x] QPACK エンコーダ / デコーダ統合
+- [x] 0-RTT / Retry / Datagram Extension 対応
 
 ### 3. TLS / Crypto
 - [ ] TLS 1.3 ハンドシェイクステートマシン
