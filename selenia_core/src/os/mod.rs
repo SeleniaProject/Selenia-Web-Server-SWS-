@@ -52,6 +52,9 @@ pub mod poller;
 // confusing compilation errors.  Therefore the legacy alias has been
 // removed.
 
+pub mod timer;
+pub use timer::Timer;
+
 /// Portable error type for the OS abstraction layer.
 #[derive(Debug)]
 pub enum OsError {
