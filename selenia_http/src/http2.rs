@@ -5,6 +5,7 @@ use std::io::{self, Write};
 use std::net::TcpStream;
 
 use std::collections::{HashMap, VecDeque};
+use std::convert::TryFrom;
 
 // -------------------------- Priority Tree ------------------------------
 /// Represents a single HTTP/2 stream node inside the priority tree.
@@ -215,6 +216,55 @@ pub enum FrameType {
     GoAway = 0x7,
     WindowUpdate = 0x8,
     Continuation = 0x9,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FrameHeader {
+    pub length: u32,
+    pub type_: FrameType,
+    pub flags: u8,
+    pub stream_id: u32,
+}
+
+impl FrameHeader {
+    pub fn serialize(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.length.to_be_bytes()[1..]); // 24-bit length
+        out.push(self.type_ as u8);
+        out.push(self.flags);
+        out.extend_from_slice(&(self.stream_id & 0x7F_FF_FF_FF).to_be_bytes());
+    }
+}
+
+impl TryFrom<u8> for FrameType {
+    type Error = ();
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            0x0 => Ok(FrameType::Data),
+            0x1 => Ok(FrameType::Headers),
+            0x2 => Ok(FrameType::Priority),
+            0x3 => Ok(FrameType::RstStream),
+            0x4 => Ok(FrameType::Settings),
+            0x5 => Ok(FrameType::PushPromise),
+            0x6 => Ok(FrameType::Ping),
+            0x7 => Ok(FrameType::GoAway),
+            0x8 => Ok(FrameType::WindowUpdate),
+            0x9 => Ok(FrameType::Continuation),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Attempt to parse a complete HTTP/2 frame from `buf`.
+/// Returns (FrameHeader, payload_len) when complete, otherwise None.
+pub fn parse_frame(buf: &[u8]) -> Option<(FrameHeader, usize)> {
+    if buf.len() < 9 { return None; }
+    let len = ((buf[0] as u32) << 16) | ((buf[1] as u32) << 8) | (buf[2] as u32);
+    if buf.len() < 9 + len as usize { return None; }
+    let type_ = FrameType::try_from(buf[3]).ok()?;
+    let flags = buf[4];
+    let stream_id = u32::from_be_bytes([buf[5], buf[6], buf[7], buf[8]]) & 0x7F_FF_FF_FF;
+    let header = FrameHeader { length: len, type_, flags, stream_id };
+    Some((header, 9 + len as usize))
 }
 
 /// Send a SETTINGS ack frame followed by GOAWAY(ENOERR) and close.
