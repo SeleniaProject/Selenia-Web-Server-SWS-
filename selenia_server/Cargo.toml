@@ -6,4 +6,5 @@ publish = false
 
 [dependencies]
 selenia_core = { path = "../selenia_core" }
-selenia_http = { path = "../selenia_http" } 
+selenia_http = { path = "../selenia_http" }
+libc = { path = "../libc" } 

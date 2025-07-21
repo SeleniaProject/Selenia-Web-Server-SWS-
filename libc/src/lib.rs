@@ -241,3 +241,62 @@ extern "C" {
     pub fn timerfd_create(clockid: c_int, flags: c_int) -> c_int;
     pub fn timerfd_settime(fd: c_int, flags: c_int, new_value: *const itimerspec, old_value: *mut itimerspec) -> c_int;
 } 
+
+// ---------- POSIX sockets (minimal subset) ----------
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const AF_UNSPEC: c_int = 0;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const SOCK_STREAM: c_int = 1;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const AI_PASSIVE: c_int = 0x1;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const SOL_SOCKET: c_int = 1;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const SO_REUSEADDR: c_int = 2;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const SO_REUSEPORT: c_int = 15;
+
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+#[repr(C)]
+pub struct sockaddr {
+    pub sa_family: c_uint,
+    pub sa_data: [c_char; 14],
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+#[repr(C)]
+pub struct addrinfo {
+    pub ai_flags: c_int,
+    pub ai_family: c_int,
+    pub ai_socktype: c_int,
+    pub ai_protocol: c_int,
+    pub ai_addrlen: size_t,
+    pub ai_addr: *mut sockaddr,
+    pub ai_canonname: *mut c_char,
+    pub ai_next: *mut addrinfo,
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+extern "C" {
+    pub fn getaddrinfo(node: *const c_char, service: *const c_char, hints: *const addrinfo, res: *mut *mut addrinfo) -> c_int;
+    pub fn freeaddrinfo(res: *mut addrinfo);
+    pub fn socket(domain: c_int, ty: c_int, protocol: c_int) -> c_int;
+    pub fn setsockopt(fd: c_int, level: c_int, optname: c_int, optval: *const c_void, optlen: size_t) -> c_int;
+    pub fn bind(fd: c_int, addr: *const sockaddr, len: size_t) -> c_int;
+    pub fn listen(fd: c_int, backlog: c_int) -> c_int;
+} 
+
+// ---------- signals & process control ----------
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub type pid_t = i32;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const SIGTERM: c_int = 15;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+pub const SIGHUP: c_int = 1;
+
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
+extern "C" {
+    pub fn fork() -> pid_t;
+    pub fn wait(status: *mut c_int) -> pid_t;
+    pub fn kill(pid: pid_t, sig: c_int) -> c_int;
+} 
