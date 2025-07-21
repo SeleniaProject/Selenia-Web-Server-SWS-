@@ -18,11 +18,11 @@
 
 ### 2. HTTP スタック
 #### 2.1 HTTP/1.x
-- [ ] ボディパーサ (chunked, Content-Length)
-- [ ] エラーハンドリング & ステータスマッピング
-- [ ] Keep-Alive 接続プール自動チューニング
-- [ ] `cargo fuzz` 対応 HTTP/1 パーザハーネス
-- [ ] wrk2 ベンチシナリオ統合
+- [x] ボディパーサ (chunked, Content-Length)
+- [x] エラーハンドリング & ステータスマッピング
+- [x] Keep-Alive 接続プール自動チューニング
+- [x] `cargo fuzz` 対応 HTTP/1 パーザハーネス
+- [x] wrk2 ベンチシナリオ統合
 
 #### 2.2 HTTP/2
 - [ ] フレームパーサ / シリアライザ完全実装

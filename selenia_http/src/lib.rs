@@ -25,6 +25,7 @@ use std::collections::HashMap;
 mod accept;
 #[cfg(unix)]
 use accept::{create_reuseport_listener, spawn_accept_thread};
+mod keepalive;
 mod parser;
 use parser::Parser;
 mod compress;
@@ -105,15 +106,17 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         // Register new inbound connections from accept threads.
         while let Ok(stream) = rx.try_recv() {
             let t = ev.register(&stream, Interest::Readable)?;
+            let conn = Conn {
+                stream,
+                buf: Vec::new(),
+                parser: Parser::new(),
+                last_active: Instant::now(),
+                peer: "unknown".into(),
+            };
+            keepalive::record_new_conn();
             conns.insert(
                 t,
-                Conn {
-                    stream,
-                    buf: Vec::new(),
-                    parser: Parser::new(),
-                    last_active: Instant::now(),
-                    peer: "unknown".into(),
-                },
+                conn,
             );
         }
 
@@ -184,6 +187,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
                                     &conn.peer,
                                 )?;
                                 req_count += 1;
+                                if req_count > 1 { keepalive::record_reuse_req(); }
                                 // remove consumed bytes (Parser consumed data)
                                 conn.buf.drain(0..consumed);
 
@@ -328,7 +332,8 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
         headers.push_str(&tp_header_line);
         if keep_alive {
             headers.push_str("Connection: keep-alive\r\n");
-            headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
+            let (ka_timeout, ka_max) = keepalive::current();
+            headers.push_str(&format!("Keep-Alive: timeout={}, max={}\r\n", ka_timeout, ka_max));
         } else {
             headers.push_str("Connection: close\r\n");
         }
@@ -464,7 +469,8 @@ fn handle_request(stream: &mut TcpStream, version: &str, method: &str, path: &st
             }
             if keep_alive {
                 headers_txt.push_str("Connection: keep-alive\r\n");
-                headers_txt.push_str("Keep-Alive: timeout=30, max=100\r\n");
+                let (ka_timeout, ka_max) = keepalive::current();
+                headers_txt.push_str(&format!("Keep-Alive: timeout={}, max={}\r\n", ka_timeout, ka_max));
             } else {
                 headers_txt.push_str("Connection: close\r\n");
             }
@@ -502,7 +508,8 @@ fn respond_simple(stream: &mut TcpStream, version: &str, status: u16, body: Stri
     }
     if keep_alive {
         headers.push_str("Connection: keep-alive\r\n");
-        headers.push_str("Keep-Alive: timeout=30, max=100\r\n");
+        let (ka_timeout, ka_max) = keepalive::current();
+        headers.push_str(&format!("Keep-Alive: timeout={}, max={}\r\n", ka_timeout, ka_max));
     } else {
         headers.push_str("Connection: close\r\n");
     }
