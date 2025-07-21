@@ -17,6 +17,10 @@ use selenia_core::crypto::sha256::sha256_digest;
 
 #[cfg(unix)]
 use selenia_core::os::{EventLoop, Interest};
+#[cfg(unix)]
+mod accept;
+#[cfg(unix)]
+use accept::{create_reuseport_listener, spawn_accept_thread};
 mod parser;
 use parser::Parser;
 mod compress;
@@ -34,22 +38,22 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
     // Bind all configured listen addresses.
     if cfg.listen.is_empty() { return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "No listen addresses")); }
 
-    let mut listeners = Vec::new();
-    for addr in &cfg.listen {
-        let lst = TcpListener::bind(addr)?;
-        lst.set_nonblocking(true)?;
-        log_info!("SWS listening on http://{}", addr);
-        listeners.push(lst);
-    }
-
+    use std::sync::mpsc::channel;
     let mut ev = EventLoop::new()?;
     signals::init_term_signals();
-    use std::collections::HashMap;
-    let mut listener_map: HashMap<usize, usize> = HashMap::new(); // token -> index in listeners
-    for (idx, lst) in listeners.iter().enumerate() {
-        let t = ev.register(lst, Interest::Readable)?;
-        listener_map.insert(t, idx);
+
+    // Channel from accept threads → event loop thread.
+    let (tx, rx) = channel();
+
+    // Spin up accept threads with SO_REUSEPORT enabled listeners.
+    for addr in &cfg.listen {
+        let lst = create_reuseport_listener(addr)?;
+        lst.set_nonblocking(true)?; // extra safety
+        log_info!("SWS listening on http://{} (reuseport)", addr);
+        spawn_accept_thread(lst, tx.clone());
     }
+
+    drop(tx); // close senders in this thread
 
     let mut idle_timeout = Duration::from_secs(30);
     let mut req_count: u64 = 0;
@@ -72,35 +76,25 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
             log_info!("Reload requested (SIGHUP) – rotating log");
             selenia_core::logger::rotate("sws.log");
         }
-        // 1000ms タイムアウトでポーリング
+        // Register new inbound connections from accept threads.
+        while let Ok(stream) = rx.try_recv() {
+            let t = ev.register(&stream, Interest::Readable)?;
+            conns.insert(
+                t,
+                Conn {
+                    stream,
+                    buf: Vec::new(),
+                    parser: Parser::new(),
+                    last_active: Instant::now(),
+                    peer: "unknown".into(),
+                },
+            );
+        }
+
+        // Poll event loop with 1000ms timeout.
         let events = ev.poll(1000)?;
         for (token, readable, _writable) in events {
-            if listener_map.contains_key(&token) && readable {
-                // accept ループ
-                loop {
-                    match listeners[*listener_map.get(&token).unwrap()].accept() {
-                        Ok((stream, addr)) => {
-                            stream.set_nonblocking(true)?;
-                            let t = ev.register(&stream, Interest::Readable)?;
-                            conns.insert(
-                                t,
-                                Conn {
-                                    stream,
-                                    buf: Vec::new(),
-                                    parser: Parser::new(),
-                                    last_active: Instant::now(),
-                                    peer: addr.to_string(),
-                                },
-                            );
-                        }
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-                        Err(e) => {
-                            log_error!("[ACCEPT ERROR] {}", e);
-                            break;
-                        }
-                    }
-                }
-            } else if readable {
+            if readable {
                 if let Some(mut conn) = conns.remove(&token) {
                     let mut tmp = [0u8; 1024];
                     match conn.stream.read(&mut tmp) {
@@ -205,7 +199,7 @@ pub fn run_server(cfg: ServerConfig) -> std::io::Result<()> {
         if req_count >= 1000 || last_adjust.elapsed() > Duration::from_secs(30) {
             // Simple heuristic: if active connections exceed 75% of concurrency, shorten timeout, else lengthen up to 60s.
             let active = conns.len();
-            let capacity = listener_map.len() * 1024; // arbitrary capacity per listener
+            let capacity = cfg.listen.len() * 1024; // arbitrary capacity per listener
             let load = active as f32 / capacity as f32;
             if load > 0.75 {
                 idle_timeout = idle_timeout.saturating_sub(Duration::from_secs(5)).max(Duration::from_secs(5));

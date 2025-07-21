@@ -9,7 +9,7 @@
 - [x] IOCP ポーラ実装 (Windows)
 - [x] timerfd / EVFILT_TIMER / WaitableTimer を統一するクロスプラットフォームタイマ抽象
 - [x] NUMA ピン止め対応マルチスレッド EventLoop への統合
-- [ ] Accept スレッド & SO_REUSEPORT 分散アルゴリズム
+- [x] Accept スレッド & SO_REUSEPORT 分散アルゴリズム
 - [ ] Lock-Free Skiplist を用いた非同期 DNS キャッシュ
 
 ## 2. HTTP スタック
